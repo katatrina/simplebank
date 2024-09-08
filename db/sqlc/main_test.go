@@ -15,17 +15,20 @@ const (
 )
 
 var (
-	testQueries *Queries
+	testQueries  *Queries
+	testConnPool *sql.DB
 )
 
 func TestMain(m *testing.M) {
-	connPool, err := sql.Open(driverName, dataSourceName)
+	var err error
+	
+	testConnPool, err = sql.Open(driverName, dataSourceName)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
-	defer connPool.Close()
+	defer testConnPool.Close()
 
-	testQueries = New(connPool)
+	testQueries = New(testConnPool)
 
 	os.Exit(m.Run())
 }
