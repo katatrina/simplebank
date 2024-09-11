@@ -18,3 +18,6 @@ test:
 
 sqlc:
 	sqlc generate
+
+server:
+	go run main.go
