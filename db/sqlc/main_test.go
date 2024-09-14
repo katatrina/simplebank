@@ -6,12 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/katatrina/simplebank/util"
 	_ "github.com/lib/pq"
-)
-
-const (
-	driverName     = "postgres"
-	dataSourceName = "postgresql://root:secret@localhost:5432/simple_bank?sslmode=disable"
 )
 
 var (
@@ -20,9 +16,12 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	var err error
-	
-	testConnPool, err = sql.Open(driverName, dataSourceName)
+	config, err := util.LoadConfig("../../app.env")
+	if err != nil {
+		log.Fatalf("cannot load config: %v", err)
+	}
+
+	testConnPool, err = sql.Open(config.DriverName, config.DataSourceName)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
