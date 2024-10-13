@@ -3,9 +3,7 @@ package api
 import (
 	"fmt"
 	
-	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
-	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/token"
 	"github.com/katatrina/simplebank/util"
@@ -13,7 +11,7 @@ import (
 
 // Server serves HTTP requests for our banking service.
 type Server struct {
-	router     *gin.Engine
+	router     *fiber.App
 	store      db.Store
 	tokenMaker token.Maker
 	config     util.Config
@@ -35,29 +33,29 @@ func NewServer(store db.Store, config util.Config) (*Server, error) {
 }
 
 func (server *Server) setupRouter() {
-	router := gin.Default()
+	app := fiber.New()
 	
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation("currency", validCurrency)
-	}
+	// if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+	// 	v.RegisterValidation("currency", validCurrency)
+	// }
 	
-	router.POST("/users", server.createUser)
-	router.POST("/users/login", server.loginUser)
+	app.Post("/users", server.createUser)
+	app.Post("/users/login", server.loginUser)
 	
-	router.POST("/accounts", server.createAccount)
-	router.GET("/accounts/:id", server.getAccount)
-	router.GET("/accounts", server.listAccounts)
+	app.Post("/accounts", server.createAccount)
+	app.Get("/accounts/:id", server.getAccount)
+	app.Get("/accounts", server.listAccounts)
 	
-	router.POST("/transfers", server.createTransfer)
+	app.Post("/transfers", server.createTransfer)
 	
-	server.router = router
+	server.router = app
 }
 
 // Start runs the HTTP server on a specific address.
 func (server *Server) Start(address string) error {
-	return server.router.Run(address)
+	return server.router.Listen(address)
 }
 
-func errorResponse(err error) gin.H {
-	return gin.H{"error": err.Error()}
+func errorResponse(err error) fiber.Map {
+	return fiber.Map{"error": err.Error()}
 }

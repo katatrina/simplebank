@@ -3,24 +3,22 @@ package api
 import (
 	"database/sql"
 	"errors"
-	"net/http"
 	
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/lib/pq"
 )
 
 type createAccountRequest struct {
-	Owner    string `json:"owner" binding:"required"`
-	Currency string `json:"currency" binding:"required,currency"`
+	Owner    string `json:"owner" validate:"required"`
+	Currency string `json:"currency" validate:"required,currency"`
 }
 
-func (server *Server) createAccount(ctx *gin.Context) {
+func (server *Server) createAccount(ctx *fiber.Ctx) error {
 	var req createAccountRequest
 	
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 	
 	arg := db.CreateAccountParams{
@@ -29,61 +27,55 @@ func (server *Server) createAccount(ctx *gin.Context) {
 		Currency: req.Currency,
 	}
 	
-	account, err := server.store.CreateAccount(ctx, arg)
+	account, err := server.store.CreateAccount(ctx.Context(), arg)
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) {
 			switch pqErr.Code.Name() {
 			case "unique_violation", "foreign_key_violation":
-				ctx.JSON(http.StatusForbidden, errorResponse(err))
-				return
+				return ctx.Status(fiber.StatusUnprocessableEntity).JSON(errorResponse(err))
 			}
 		}
 		
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}
 	
-	ctx.JSON(http.StatusOK, account)
+	return ctx.Status(fiber.StatusOK).JSON(account)
 }
 
 type getAccountRequest struct {
-	ID int64 `uri:"id" binding:"required,min=1"`
+	ID int64 `params:"id" validate:"required,min=1"`
 }
 
-func (server *Server) getAccount(ctx *gin.Context) {
-	var req getAccountRequest
+func (server *Server) getAccount(ctx *fiber.Ctx) error {
+	req := new(getAccountRequest)
 	
-	if err := ctx.ShouldBindUri(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
+	if err := ctx.ParamsParser(req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 	
-	account, err := server.store.GetAccount(ctx, req.ID)
+	account, err := server.store.GetAccount(ctx.Context(), req.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusNotFound, errorResponse(err))
-			return
+			return ctx.Status(fiber.StatusNotFound).JSON(errorResponse(err))
 		}
 		
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}
 	
-	ctx.JSON(http.StatusOK, account)
+	return ctx.Status(fiber.StatusOK).JSON(account)
 }
 
 type listAccountsRequest struct {
-	PageID   int32 `form:"page_id" binding:"required,min=1"`
-	PageSize int32 `form:"page_size" binding:"required,min=5,max=10"`
+	PageID   int32 `query:"page_id" validate:"required,min=1"`
+	PageSize int32 `query:"page_size" validate:"required,min=5,max=10"`
 }
 
-func (server *Server) listAccounts(ctx *gin.Context) {
+func (server *Server) listAccounts(ctx *fiber.Ctx) error {
 	var req listAccountsRequest
 	
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
+	if err := ctx.QueryParser(&req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 	
 	arg := db.ListAccountsParams{
@@ -91,11 +83,10 @@ func (server *Server) listAccounts(ctx *gin.Context) {
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
 	
-	accounts, err := server.store.ListAccounts(ctx, arg)
+	accounts, err := server.store.ListAccounts(ctx.Context(), arg)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}
 	
-	ctx.JSON(http.StatusOK, accounts)
+	return ctx.Status(fiber.StatusOK).JSON(accounts)
 }
