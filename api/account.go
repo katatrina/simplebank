@@ -11,19 +11,20 @@ import (
 )
 
 type createAccountRequest struct {
-	Owner    string `json:"owner" validate:"required"`
 	Currency string `json:"currency" validate:"required,currency"`
 }
 
 func (server *Server) createAccount(ctx *fiber.Ctx) error {
-	var req createAccountRequest
+	req := new(createAccountRequest)
 	
-	if err := ctx.BodyParser(&req); err != nil {
+	if err := ctx.BodyParser(req); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 	
+	authPayload := ctx.UserContext().Value(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	
 	arg := db.CreateAccountParams{
-		Owner:    req.Owner,
+		Owner:    authPayload.Subject,
 		Balance:  0,
 		Currency: req.Currency,
 	}
@@ -67,7 +68,7 @@ func (server *Server) getAccount(ctx *fiber.Ctx) error {
 	
 	authPayload := ctx.UserContext().Value(authorizationPayloadKey).(*jwt.RegisteredClaims)
 	if account.Owner != authPayload.Subject {
-		err = errors.New("account does not belong to the authenticated user")
+		err = errors.New("requested account does not belong to the authenticated user")
 		return ctx.Status(fiber.StatusForbidden).JSON(errorResponse(err))
 	}
 	
@@ -79,19 +80,23 @@ type listAccountsRequest struct {
 	PageSize int32 `query:"page_size" validate:"required,min=5,max=10"`
 }
 
+// listAccounts returns a list of all accounts of the authenticated user.
 func (server *Server) listAccounts(ctx *fiber.Ctx) error {
-	var req listAccountsRequest
+	req := new(listAccountsRequest)
 	
-	if err := ctx.QueryParser(&req); err != nil {
+	if err := ctx.QueryParser(req); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 	
-	arg := db.ListAccountsParams{
+	authPayload := ctx.UserContext().Value(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	
+	arg := db.ListAccountsByOwnerParams{
+		Owner:  authPayload.Subject,
 		Limit:  req.PageSize,
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
 	
-	accounts, err := server.store.ListAccounts(ctx.Context(), arg)
+	accounts, err := server.store.ListAccountsByOwner(ctx.Context(), arg)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}

@@ -36,14 +36,10 @@ func NewServer(store db.Store, config util.Config) (*Server, error) {
 func (server *Server) setupRouter() {
 	app := fiber.New()
 	
-	// if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-	// 	v.RegisterValidation("currency", validCurrency)
-	// }
-	
 	app.Post("/users", server.createUser)
 	app.Post("/users/login", server.loginUser)
 	
-	authRoutes := app.Group("", server.authMiddleware)
+	authRoutes := app.Group("/", server.authMiddleware)
 	
 	authRoutes.Post("/accounts", server.createAccount)
 	authRoutes.Get("/accounts/:id", server.getAccount)
