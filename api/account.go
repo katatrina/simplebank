@@ -5,6 +5,7 @@ import (
 	"errors"
 	
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/lib/pq"
 )
@@ -47,6 +48,7 @@ type getAccountRequest struct {
 	ID int64 `params:"id" validate:"required,min=1"`
 }
 
+// getAccount returns an account of the authenticated user by the account ID.
 func (server *Server) getAccount(ctx *fiber.Ctx) error {
 	req := new(getAccountRequest)
 	
@@ -61,6 +63,12 @@ func (server *Server) getAccount(ctx *fiber.Ctx) error {
 		}
 		
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+	}
+	
+	authPayload := ctx.UserContext().Value(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	if account.Owner != authPayload.Subject {
+		err = errors.New("account does not belong to the authenticated user")
+		return ctx.Status(fiber.StatusForbidden).JSON(errorResponse(err))
 	}
 	
 	return ctx.Status(fiber.StatusOK).JSON(account)
