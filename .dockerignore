@@ -1,0 +1,7 @@
+.github/
+.git
+README.md
+Dockerfile
+docker-compose.yml
+Makefile
+sqlc.yaml
