@@ -20,6 +20,7 @@ COPY --from=buidler app/migrate .
 COPY app.env .
 COPY db/migrations ./migrations/
 COPY start.sh .
+RUN chmod +x start.sh
 
 EXPOSE 8080
 CMD ["/app/main"]
