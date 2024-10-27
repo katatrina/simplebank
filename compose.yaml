@@ -3,6 +3,8 @@ name: simplebank
 services:
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "5432:5432"
     environment:
       - POSTGRES_USER=root
       - POSTGRES_PASSWORD=secret
@@ -22,5 +24,7 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+#    volumes:
+#      - ./:/app
     environment:
       DATASOURCE_NAME: "postgresql://root:secret@postgres:5432/simple_bank?sslmode=disable"

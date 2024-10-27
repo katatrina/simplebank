@@ -8,7 +8,7 @@ import (
 
 type Maker interface {
 	// CreateToken creates a new token string for the specific username and duration.
-	CreateToken(username string, duration time.Duration) (string, error)
-	// VerifyToken verifies the token string and returns the claims if the token is valid.
-	VerifyToken(tokenString string) (*jwt.RegisteredClaims, error)
+	CreateToken(username string, duration time.Duration) (token string, payload *jwt.RegisteredClaims, err error)
+	// VerifyToken verifies the token string and returns the payload if the token is valid.
+	VerifyToken(tokenString string) (payload *jwt.RegisteredClaims, err error)
 }
