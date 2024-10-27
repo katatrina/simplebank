@@ -38,9 +38,9 @@ func (server *Server) setupRouter() {
 	
 	app.Post("/users", server.createUser)
 	app.Post("/users/login", server.loginUser)
+	app.Post("/tokens/renew_access", server.renewAccessToken)
 	
-	authRoutes := app.Group("/", server.authMiddleware)
-	
+	authRoutes := app.Group("/", authMiddleware(server.tokenMaker))
 	authRoutes.Post("/accounts", server.createAccount)
 	authRoutes.Get("/accounts/:id", server.getAccount)
 	authRoutes.Get("/accounts", server.listAccounts)

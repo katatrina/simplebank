@@ -4,6 +4,7 @@ CREATE TABLE "sessions"
     "username"      text        NOT NULL,
     "refresh_token" text        NOT NULL,
     "client_ip"     text        NOT NULL,
+    "user_agent"    text        NOT NULL,
     "is_blocked"    bool        NOT NULL DEFAULT false,
     "expires_at"    timestamptz NOT NULL,
     "created_at"    timestamptz NOT NULL DEFAULT (now())

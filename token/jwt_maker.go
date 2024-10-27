@@ -26,26 +26,26 @@ func NewJWTMaker(secretKey string) (Maker, error) {
 	return &JWTMaker{secretKey}, nil
 }
 
-func (maker *JWTMaker) CreateToken(username string, duration time.Duration) (string, error) {
+func (maker *JWTMaker) CreateToken(username string, duration time.Duration) (string, *jwt.RegisteredClaims, error) {
 	tokenID, err := uuid.NewRandom()
 	if err != nil {
-		return "", fmt.Errorf("cannot create token: %w", err)
+		return "", nil, fmt.Errorf("cannot create token: %w", err)
 	}
 	
-	unsignedToken := jwt.NewWithClaims(jwt.SigningMethodHS256,
-		jwt.RegisteredClaims{
-			Issuer:    tokenIssuer,
-			Subject:   username,
-			Audience:  jwt.ClaimStrings{"client"},
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ID:        tokenID.String(),
-		},
-	)
+	payload := &jwt.RegisteredClaims{
+		ID:        tokenID.String(),
+		Issuer:    tokenIssuer,
+		Subject:   username,
+		Audience:  jwt.ClaimStrings{"client"},
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		NotBefore: jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
+	}
+	
+	unsignedToken := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
 	
 	signedToken, err := unsignedToken.SignedString([]byte(maker.secretKey))
-	return signedToken, err
+	return signedToken, payload, err
 }
 
 func (maker *JWTMaker) VerifyToken(tokenString string) (*jwt.RegisteredClaims, error) {
@@ -60,10 +60,10 @@ func (maker *JWTMaker) VerifyToken(tokenString string) (*jwt.RegisteredClaims, e
 		return nil, err
 	}
 	
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	payload, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
 		return nil, fmt.Errorf("unknown claims type, cannot proceed")
 	}
 	
-	return claims, nil
+	return payload, nil
 }
