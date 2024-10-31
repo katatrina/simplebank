@@ -3,15 +3,15 @@ package api
 import (
 	"fmt"
 	
-	"github.com/gofiber/fiber/v2"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/token"
 	"github.com/katatrina/simplebank/util"
+	"github.com/labstack/echo/v4"
 )
 
 // Server serves HTTP requests for our banking service.
 type Server struct {
-	router     *fiber.App
+	router     *echo.Echo
 	store      db.Store
 	tokenMaker token.Maker
 	config     util.Config
@@ -34,27 +34,27 @@ func NewServer(store db.Store, config util.Config) (*Server, error) {
 }
 
 func (server *Server) setupRouter() {
-	app := fiber.New()
+	router := echo.New()
 	
-	app.Post("/users", server.createUser)
-	app.Post("/users/login", server.loginUser)
-	app.Post("/tokens/renew_access", server.renewAccessToken)
+	router.POST("/users", server.createUser)
+	router.POST("/users/login", server.loginUser)
+	router.POST("/tokens/renew_access", server.renewAccessToken)
 	
-	authRoutes := app.Group("/", authMiddleware(server.tokenMaker))
-	authRoutes.Post("/accounts", server.createAccount)
-	authRoutes.Get("/accounts/:id", server.getAccount)
-	authRoutes.Get("/accounts", server.listAccounts)
+	authRoutes := router.Group("/", server.authMiddleware)
+	authRoutes.POST("accounts", server.createAccount)
+	authRoutes.GET("accounts/:id", server.getAccount)
+	authRoutes.GET("accounts", server.listAccounts)
 	
-	authRoutes.Post("/transfers", server.createTransfer)
+	authRoutes.POST("transfers", server.createTransfer)
 	
-	server.router = app
+	server.router = router
 }
 
 // Start runs the HTTP server on a specific address.
 func (server *Server) Start(address string) error {
-	return server.router.Listen(address)
+	return server.router.Start(address)
 }
 
-func errorResponse(err error) fiber.Map {
-	return fiber.Map{"error": err.Error()}
+func errorResponse(err error) echo.Map {
+	return echo.Map{"error": err.Error()}
 }

@@ -1,16 +1,18 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 	"time"
 	
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 type renewAccessTokenRequest struct {
-	RefreshToken string `json:"refresh_token" validate:"required"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 type renewAccessTokenResponse struct {
@@ -18,60 +20,60 @@ type renewAccessTokenResponse struct {
 	AccessTokenExpiresAt time.Time `json:"access_token_expires_at"`
 }
 
-func (server *Server) renewAccessToken(ctx *fiber.Ctx) error {
+func (server *Server) renewAccessToken(ctx echo.Context) error {
 	req := new(renewAccessTokenRequest)
 	
-	if err := ctx.BodyParser(req); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	if err := ctx.Bind(req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
 	}
 	
 	refreshPayload, err := server.tokenMaker.VerifyToken(req.RefreshToken)
 	if err != nil {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 	}
 	
 	sessionID, err := uuid.Parse(refreshPayload.ID)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
-	session, err := server.store.GetSession(ctx.Context(), sessionID)
+	session, err := server.store.GetSession(context.Background(), sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ctx.Status(fiber.StatusNotFound).JSON(errorResponse(err))
+			return ctx.JSON(http.StatusNotFound, errorResponse(err))
 		}
 		
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	if session.IsBlocked {
 		err = errors.New("blocked session")
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 	}
 	
 	if session.Username != refreshPayload.Subject {
 		err = errors.New("mismatch session user")
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 	}
 	
 	if session.RefreshToken != req.RefreshToken {
 		err = errors.New("mismatch refresh token")
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 	}
 	
 	if time.Now().After(refreshPayload.ExpiresAt.Time) {
 		err = errors.New("expired session")
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 	}
 	
 	accessToken, accessPayload, err := server.tokenMaker.CreateToken(session.Username, server.config.AccessTokenDuration)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	res := renewAccessTokenResponse{
 		AccessToken:          accessToken,
 		AccessTokenExpiresAt: accessPayload.ExpiresAt.Time,
 	}
-	return ctx.Status(fiber.StatusOK).JSON(res)
+	return ctx.JSON(http.StatusOK, res)
 }

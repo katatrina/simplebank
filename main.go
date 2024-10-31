@@ -34,7 +34,7 @@ func main() {
 	
 	store := db.NewStore(connPool)
 	
-	runGrpcServer(config, store)
+	// runGrpcServer(config, store)
 	runHTTPServer(config, store)
 }
 
