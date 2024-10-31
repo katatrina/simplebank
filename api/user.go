@@ -1,34 +1,36 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 	"time"
 	
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
+	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 )
 
 type createUserRequest struct {
-	Username string `json:"username" validate:"required,alphanum"` // alphanum: only letters and numbers
-	Password string `json:"password" validate:"required,min=6"`
-	FullName string `json:"full_name" validate:"required"`
-	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	FullName string `json:"full_name"`
+	Email    string `json:"email"`
 }
 
-func (server *Server) createUser(ctx *fiber.Ctx) error {
+func (server *Server) createUser(ctx echo.Context) error {
 	req := new(createUserRequest)
 	
-	if err := ctx.BodyParser(req); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	if err := ctx.Bind(req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
 	}
 	
 	hashedPassword, err := util.HashPassword(req.Password)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	arg := db.CreateUserParams{
@@ -38,25 +40,25 @@ func (server *Server) createUser(ctx *fiber.Ctx) error {
 		Email:          req.Email,
 	}
 	
-	user, err := server.store.CreateUser(ctx.Context(), arg)
+	user, err := server.store.CreateUser(context.Background(), arg)
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) {
 			switch pqErr.Code.Name() {
 			case "unique_violation":
-				return ctx.Status(fiber.StatusUnprocessableEntity).JSON(errorResponse(err))
+				return ctx.JSON(http.StatusUnprocessableEntity, errorResponse(err))
 			}
 		}
 		
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
-	return ctx.Status(fiber.StatusOK).JSON(user)
+	return ctx.JSON(http.StatusOK, user)
 }
 
 type loginUserRequest struct {
-	Username string `json:"username" validate:"required,alphanum"`
-	Password string `json:"password" validate:"required,min=6"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type loginUserResponse struct {
@@ -68,55 +70,55 @@ type loginUserResponse struct {
 	User                  db.User   `json:"user"`
 }
 
-func (server *Server) loginUser(ctx *fiber.Ctx) error {
+func (server *Server) loginUser(ctx echo.Context) error {
 	req := new(loginUserRequest)
 	
-	if err := ctx.BodyParser(req); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	if err := ctx.Bind(req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
 	}
 	
-	user, err := server.store.GetUser(ctx.Context(), req.Username)
+	user, err := server.store.GetUser(context.Background(), req.Username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+			return ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		}
 		
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	err = util.CheckPassword(req.Password, user.HashedPassword)
 	if err != nil {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 	}
 	
 	accessToken, accessPayload, err := server.tokenMaker.CreateToken(user.Username, server.config.AccessTokenDuration)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	refreshToken, refreshPayload, err := server.tokenMaker.CreateToken(user.Username, server.config.RefreshTokenDuration)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	sessionID, err := uuid.Parse(refreshPayload.ID)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
-	session, err := server.store.CreateSession(ctx.Context(), db.CreateSessionParams{
+	session, err := server.store.CreateSession(context.Background(), db.CreateSessionParams{
 		ID:           sessionID,
 		Username:     user.Username,
 		RefreshToken: refreshToken,
-		UserAgent:    string(ctx.Request().Header.UserAgent()),
-		ClientIp:     ctx.IP(),
+		UserAgent:    ctx.Request().UserAgent(),
+		ClientIp:     ctx.RealIP(),
 		ExpiresAt:    refreshPayload.ExpiresAt.Time,
 	})
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
-	res := loginUserResponse{
+	resp := loginUserResponse{
 		SessionID:             session.ID,
 		AccessToken:           accessToken,
 		AccessTokenExpiresAt:  accessPayload.ExpiresAt.Time,
@@ -124,5 +126,5 @@ func (server *Server) loginUser(ctx *fiber.Ctx) error {
 		RefreshTokenExpiresAt: refreshPayload.ExpiresAt.Time,
 		User:                  user,
 	}
-	return ctx.Status(fiber.StatusOK).JSON(res)
+	return ctx.JSON(http.StatusOK, resp)
 }

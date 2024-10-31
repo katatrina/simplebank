@@ -1,13 +1,15 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	
-	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	db "github.com/katatrina/simplebank/db/sqlc"
+	"github.com/labstack/echo/v4"
 )
 
 type createTransferRequest struct {
@@ -17,27 +19,27 @@ type createTransferRequest struct {
 	Currency      string `json:"currency" validate:"required,currency"`
 }
 
-func (server *Server) createTransfer(ctx *fiber.Ctx) error {
+func (server *Server) createTransfer(ctx echo.Context) error {
 	req := new(createTransferRequest)
 	
-	if err := ctx.BodyParser(req); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	if err := ctx.Bind(req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
 	}
 	
-	authPayload := ctx.UserContext().Value(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	authPayload := ctx.Get(authorizationPayloadKey).(*jwt.RegisteredClaims)
 	
-	fromAccount, err := server.validAccount(ctx, req.FromAccountID, req.Currency)
-	if err != nil {
+	fromAccount, valid, err := server.validAccount(ctx, req.FromAccountID, req.Currency)
+	if !valid {
 		return err
 	}
 	
 	if fromAccount.Owner != authPayload.Subject {
 		err = errors.New("from account does not belong to the authenticated user")
-		return ctx.Status(fiber.StatusForbidden).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusForbidden, errorResponse(err))
 	}
 	
-	_, err = server.validAccount(ctx, req.ToAccountID, req.Currency)
-	if err != nil {
+	_, valid, err = server.validAccount(ctx, req.ToAccountID, req.Currency)
+	if !valid {
 		return err
 	}
 	
@@ -47,30 +49,30 @@ func (server *Server) createTransfer(ctx *fiber.Ctx) error {
 		Amount:        req.Amount,
 	}
 	
-	result, err := server.store.TransferTx(ctx.Context(), arg)
+	result, err := server.store.TransferTx(context.Background(), arg)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
-	return ctx.Status(fiber.StatusOK).JSON(result)
+	return ctx.JSON(http.StatusOK, result)
 }
 
 // validAccount checks if an account exists and has desired currency.
 // It has also handled the response for the caller.
-func (server *Server) validAccount(ctx *fiber.Ctx, accountID int64, currency string) (db.Account, error) {
-	account, err := server.store.GetAccount(ctx.Context(), accountID)
+func (server *Server) validAccount(ctx echo.Context, accountID int64, currency string) (db.Account, bool, error) {
+	account, err := server.store.GetAccount(context.Background(), accountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return account, ctx.Status(fiber.StatusNotFound).JSON(errorResponse(err))
+			return account, false, ctx.JSON(http.StatusNotFound, errorResponse(err))
 		}
 		
-		return account, ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+		return account, false, ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 	}
 	
 	if account.Currency != currency {
 		err = fmt.Errorf("account %d currency mismatch: %s vs %s", accountID, account.Currency, currency)
-		return account, ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+		return account, false, ctx.JSON(http.StatusBadRequest, errorResponse(err))
 	}
 	
-	return account, nil
+	return account, true, nil
 }
