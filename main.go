@@ -35,7 +35,7 @@ func main() {
 	store := db.NewStore(connPool)
 	
 	runGrpcServer(config, store)
-	// runFiberServer(config, store)
+	runHTTPServer(config, store)
 }
 
 func runGrpcServer(config util.Config, store db.Store) {
@@ -60,7 +60,7 @@ func runGrpcServer(config util.Config, store db.Store) {
 	}
 }
 
-func runFiberServer(config util.Config, store db.Store) {
+func runHTTPServer(config util.Config, store db.Store) {
 	server, err := api.NewServer(store, config)
 	if err != nil {
 		log.Fatalf("cannot create HTTP server <= %v", err)
