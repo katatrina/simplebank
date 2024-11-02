@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 	
-	"github.com/labstack/echo/v4"
+	"github.com/gin-gonic/gin"
+	"github.com/katatrina/simplebank/token"
 )
 
 const (
@@ -15,33 +16,36 @@ const (
 )
 
 // authMiddleware requires the client to provide a valid access token.
-func (server *Server) authMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(ctx echo.Context) error {
-		authorizationHeader := ctx.Request().Header.Get(authorizationHeaderKey)
+func authMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		authorizationHeader := ctx.GetHeader(authorizationHeaderKey)
 		if authorizationHeader == "" {
 			err := errors.New("authorization header is not provided")
-			return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			return
 		}
 		
 		fields := strings.Split(authorizationHeader, " ")
 		if len(fields) != 2 {
 			err := errors.New("invalid authorization header format")
-			return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			return
 		}
 		
 		authorizationHeaderType := fields[0]
 		if authorizationHeaderType != authorizationTypeBearer {
 			err := errors.New("unsupported authorization header type")
-			return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			return
 		}
 		
-		payload, err := server.tokenMaker.VerifyToken(fields[1])
+		payload, err := tokenMaker.VerifyToken(fields[1])
 		if err != nil {
-			return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			return
 		}
 		
 		ctx.Set(authorizationPayloadKey, payload)
-		
-		return next(ctx)
+		ctx.Next()
 	}
 }

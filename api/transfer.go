@@ -7,40 +7,45 @@ import (
 	"fmt"
 	"net/http"
 	
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	db "github.com/katatrina/simplebank/db/sqlc"
-	"github.com/labstack/echo/v4"
 )
 
 type createTransferRequest struct {
-	FromAccountID int64  `json:"from_account_id" validate:"required,min=1"`
-	ToAccountID   int64  `json:"to_account_id" validate:"required,min=1"`
-	Amount        int64  `json:"amount" validate:"required,gt=0"`
-	Currency      string `json:"currency" validate:"required,currency"`
+	FromAccountID int64  `json:"from_account_id" binding:"required,min=1"`
+	ToAccountID   int64  `json:"to_account_id" binding:"required,min=1"`
+	Amount        int64  `json:"amount" binding:"required,gt=0"`
+	Currency      string `json:"currency" binding:"required"`
 }
 
-func (server *Server) createTransfer(ctx echo.Context) error {
-	req := new(createTransferRequest)
+func (server *Server) createTransfer(ctx *gin.Context) {
+	var req createTransferRequest
 	
-	if err := ctx.Bind(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
+	// Binding the JSON body
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
 	}
 	
-	authPayload := ctx.Get(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*jwt.RegisteredClaims)
 	
 	fromAccount, valid, err := server.validAccount(ctx, req.FromAccountID, req.Currency)
 	if !valid {
-		return err
+		return // error already handled by validAccount
 	}
 	
+	// Verify account ownership
 	if fromAccount.Owner != authPayload.Subject {
 		err = errors.New("from account does not belong to the authenticated user")
-		return ctx.JSON(http.StatusForbidden, errorResponse(err))
+		ctx.JSON(http.StatusForbidden, errorResponse(err))
+		return
 	}
 	
+	// Check the to-account validity
 	_, valid, err = server.validAccount(ctx, req.ToAccountID, req.Currency)
 	if !valid {
-		return err
+		return // error already handled by validAccount
 	}
 	
 	arg := db.TransferTxParams{
@@ -49,29 +54,35 @@ func (server *Server) createTransfer(ctx echo.Context) error {
 		Amount:        req.Amount,
 	}
 	
+	// Perform the transfer
 	result, err := server.store.TransferTx(context.Background(), arg)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
-	return ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, result)
 }
 
-// validAccount checks if an account exists and has desired currency.
-// It has also handled the response for the caller.
-func (server *Server) validAccount(ctx echo.Context, accountID int64, currency string) (db.Account, bool, error) {
+// validAccount checks if an account exists and has the desired currency.
+// It also handles any errors in the response for the caller.
+func (server *Server) validAccount(ctx *gin.Context, accountID int64, currency string) (db.Account, bool, error) {
 	account, err := server.store.GetAccount(context.Background(), accountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return account, false, ctx.JSON(http.StatusNotFound, errorResponse(err))
+			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			return account, false, err
 		}
 		
-		return account, false, ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return account, false, err
 	}
 	
+	// Check currency match
 	if account.Currency != currency {
 		err = fmt.Errorf("account %d currency mismatch: %s vs %s", accountID, account.Currency, currency)
-		return account, false, ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return account, false, err
 	}
 	
 	return account, true, nil

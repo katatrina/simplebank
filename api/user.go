@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 	
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
-	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 )
 
@@ -21,16 +21,18 @@ type createUserRequest struct {
 	Email    string `json:"email"`
 }
 
-func (server *Server) createUser(ctx echo.Context) error {
+func (server *Server) createUser(ctx *gin.Context) {
 	req := new(createUserRequest)
 	
-	if err := ctx.Bind(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
+	if err := ctx.ShouldBindJSON(req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
 	}
 	
 	hashedPassword, err := util.HashPassword(req.Password)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	arg := db.CreateUserParams{
@@ -46,14 +48,16 @@ func (server *Server) createUser(ctx echo.Context) error {
 		if errors.As(err, &pqErr) {
 			switch pqErr.Code.Name() {
 			case "unique_violation":
-				return ctx.JSON(http.StatusUnprocessableEntity, errorResponse(err))
+				ctx.JSON(http.StatusUnprocessableEntity, errorResponse(err))
+				return
 			}
 		}
 		
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
-	return ctx.JSON(http.StatusOK, user)
+	ctx.JSON(http.StatusOK, user)
 }
 
 type loginUserRequest struct {
@@ -70,52 +74,60 @@ type loginUserResponse struct {
 	User                  db.User   `json:"user"`
 }
 
-func (server *Server) loginUser(ctx echo.Context) error {
+func (server *Server) loginUser(ctx *gin.Context) {
 	req := new(loginUserRequest)
 	
 	if err := ctx.Bind(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
 	}
 	
 	user, err := server.store.GetUser(context.Background(), req.Username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ctx.JSON(http.StatusBadRequest, errorResponse(err))
+			ctx.JSON(http.StatusBadRequest, errorResponse(err))
+			return
 		}
 		
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	err = util.CheckPassword(req.Password, user.HashedPassword)
 	if err != nil {
-		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
 	}
 	
 	accessToken, accessPayload, err := server.tokenMaker.CreateToken(user.Username, server.config.AccessTokenDuration)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	refreshToken, refreshPayload, err := server.tokenMaker.CreateToken(user.Username, server.config.RefreshTokenDuration)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	sessionID, err := uuid.Parse(refreshPayload.ID)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	session, err := server.store.CreateSession(context.Background(), db.CreateSessionParams{
 		ID:           sessionID,
 		Username:     user.Username,
 		RefreshToken: refreshToken,
-		UserAgent:    ctx.Request().UserAgent(),
-		ClientIp:     ctx.RealIP(),
+		UserAgent:    ctx.GetHeader("User-Agent"),
+		ClientIp:     ctx.ClientIP(),
 		ExpiresAt:    refreshPayload.ExpiresAt.Time,
 	})
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	resp := loginUserResponse{
@@ -126,5 +138,5 @@ func (server *Server) loginUser(ctx echo.Context) error {
 		RefreshTokenExpiresAt: refreshPayload.ExpiresAt.Time,
 		User:                  user,
 	}
-	return ctx.JSON(http.StatusOK, resp)
+	ctx.JSON(http.StatusOK, resp)
 }

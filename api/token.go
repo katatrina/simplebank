@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 	
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 )
 
 type renewAccessTokenRequest struct {
@@ -20,60 +20,70 @@ type renewAccessTokenResponse struct {
 	AccessTokenExpiresAt time.Time `json:"access_token_expires_at"`
 }
 
-func (server *Server) renewAccessToken(ctx echo.Context) error {
+func (server *Server) renewAccessToken(ctx *gin.Context) {
 	req := new(renewAccessTokenRequest)
 	
 	if err := ctx.Bind(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
 	}
 	
 	refreshPayload, err := server.tokenMaker.VerifyToken(req.RefreshToken)
 	if err != nil {
-		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
 	}
 	
 	sessionID, err := uuid.Parse(refreshPayload.ID)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	session, err := server.store.GetSession(context.Background(), sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ctx.JSON(http.StatusNotFound, errorResponse(err))
+			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			return
 		}
 		
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	if session.IsBlocked {
 		err = errors.New("blocked session")
-		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
 	}
 	
 	if session.Username != refreshPayload.Subject {
 		err = errors.New("mismatch session user")
-		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
 	}
 	
 	if session.RefreshToken != req.RefreshToken {
 		err = errors.New("mismatch refresh token")
-		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
 	}
 	
 	if time.Now().After(refreshPayload.ExpiresAt.Time) {
 		err = errors.New("expired session")
-		return ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
 	}
 	
 	accessToken, accessPayload, err := server.tokenMaker.CreateToken(session.Username, server.config.AccessTokenDuration)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 	
 	res := renewAccessTokenResponse{
 		AccessToken:          accessToken,
 		AccessTokenExpiresAt: accessPayload.ExpiresAt.Time,
 	}
-	return ctx.JSON(http.StatusOK, res)
+	ctx.JSON(http.StatusOK, res)
 }
