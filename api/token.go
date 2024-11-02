@@ -23,7 +23,7 @@ type renewAccessTokenResponse struct {
 func (server *Server) renewAccessToken(ctx *gin.Context) {
 	req := new(renewAccessTokenRequest)
 	
-	if err := ctx.Bind(req); err != nil {
+	if err := ctx.ShouldBindJSON(req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}

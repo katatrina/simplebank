@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
+	"github.com/katatrina/simplebank/validator"
 	"github.com/lib/pq"
 )
 
@@ -21,11 +22,37 @@ type createUserRequest struct {
 	Email    string `json:"email"`
 }
 
+func validateCreateUserRequest(req *createUserRequest) (violations []*validator.FieldViolation) {
+	if err := validator.ValidateUsername(req.Username); err != nil {
+		violations = append(violations, fieldViolation("username", err))
+	}
+	
+	if err := validator.ValidatePassword(req.Password); err != nil {
+		violations = append(violations, fieldViolation("password", err))
+	}
+	
+	if err := validator.ValidateFullName(req.FullName); err != nil {
+		violations = append(violations, fieldViolation("full_name", err))
+	}
+	
+	if err := validator.ValidateEmail(req.Email); err != nil {
+		violations = append(violations, fieldViolation("email", err))
+	}
+	
+	return violations
+}
+
 func (server *Server) createUser(ctx *gin.Context) {
 	req := new(createUserRequest)
 	
 	if err := ctx.ShouldBindJSON(req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	
+	violations := validateCreateUserRequest(req)
+	if violations != nil {
+		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
 		return
 	}
 	
@@ -74,11 +101,29 @@ type loginUserResponse struct {
 	User                  db.User   `json:"user"`
 }
 
+func validateLoginUserRequest(req *loginUserRequest) (violations []*validator.FieldViolation) {
+	if err := validator.ValidateUsername(req.Username); err != nil {
+		violations = append(violations, fieldViolation("username", err))
+	}
+	
+	if err := validator.ValidatePassword(req.Password); err != nil {
+		violations = append(violations, fieldViolation("password", err))
+	}
+	
+	return violations
+}
+
 func (server *Server) loginUser(ctx *gin.Context) {
 	req := new(loginUserRequest)
 	
-	if err := ctx.Bind(req); err != nil {
+	if err := ctx.ShouldBindJSON(req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	
+	violations := validateLoginUserRequest(req)
+	if violations != nil {
+		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
 		return
 	}
 	
