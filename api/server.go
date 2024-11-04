@@ -37,7 +37,7 @@ func (server *Server) setupRouter() {
 	router := gin.Default()
 	
 	router.POST("/users", server.createUser)
-	router.PATCH("/users", server.updateUser)
+	router.PATCH("/users", authMiddleware(server.tokenMaker), server.updateUser)
 	router.POST("/users/login", server.loginUser)
 	
 	router.POST("/tokens/renew_access", server.renewAccessToken)
