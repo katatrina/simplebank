@@ -37,7 +37,9 @@ func (server *Server) setupRouter() {
 	router := gin.Default()
 	
 	router.POST("/users", server.createUser)
+	router.PATCH("/users", server.updateUser)
 	router.POST("/users/login", server.loginUser)
+	
 	router.POST("/tokens/renew_access", server.renewAccessToken)
 	
 	authRoutes := router.Group("/", authMiddleware(server.tokenMaker))
@@ -56,5 +58,5 @@ func (server *Server) Start(address string) error {
 }
 
 func errorResponse(err error) gin.H {
-	return gin.H{"error": err.Error()}
+	return gin.H{"message": err.Error()}
 }

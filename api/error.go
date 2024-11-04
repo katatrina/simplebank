@@ -4,7 +4,7 @@ import (
 	"github.com/katatrina/simplebank/validator"
 )
 
-type BadRequest struct {
+type badRequest struct {
 	Message         string                      `json:"message"`
 	FieldViolations []*validator.FieldViolation `json:"field_violations"`
 }
@@ -16,8 +16,8 @@ func fieldViolation(field string, err error) *validator.FieldViolation {
 	}
 }
 
-func invalidArgumentError(violations []*validator.FieldViolation) *BadRequest {
-	return &BadRequest{
+func invalidArgumentError(violations []*validator.FieldViolation) *badRequest {
+	return &badRequest{
 		Message:         "Invalid argument(s) for the request",
 		FieldViolations: violations,
 	}

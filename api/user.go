@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 	
@@ -184,4 +185,131 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		User:                  user,
 	}
 	ctx.JSON(http.StatusOK, resp)
+}
+
+type updateUserRequest struct {
+	Username string  `json:"username"`
+	FullName *string `json:"full_name"`
+	Email    *string `json:"email"`
+	Password *string `json:"password"`
+}
+
+func (req *updateUserRequest) getUserName() string {
+	if req != nil {
+		return req.Username
+	}
+	
+	return ""
+}
+
+func (req *updateUserRequest) getFullName() string {
+	if req != nil && req.FullName != nil {
+		return *req.FullName
+	}
+	
+	return ""
+}
+
+func (req *updateUserRequest) getEmail() string {
+	if req != nil && req.Email != nil {
+		return *req.Email
+	}
+	
+	return ""
+}
+
+func (req *updateUserRequest) getPassword() string {
+	if req != nil && req.Password != nil {
+		return *req.Password
+	}
+	
+	return ""
+}
+
+func validateUpdateUserRequest(req *updateUserRequest) (violations []*validator.FieldViolation) {
+	if err := validator.ValidateUsername(req.getUserName()); err != nil {
+		violations = append(violations, fieldViolation("username", err))
+	}
+	
+	// If the password field is not nil, validate the password.
+	// If the password field is nil, it means the user does not want to update the password.
+	if req.Password != nil {
+		if err := validator.ValidatePassword(req.getPassword()); err != nil {
+			violations = append(violations, fieldViolation("password", err))
+		}
+	}
+	
+	if req.FullName != nil {
+		if err := validator.ValidateFullName(req.getFullName()); err != nil {
+			violations = append(violations, fieldViolation("full_name", err))
+		}
+	}
+	
+	if req.Email != nil {
+		if err := validator.ValidateEmail(req.getEmail()); err != nil {
+			violations = append(violations, fieldViolation("email", err))
+		}
+	}
+	
+	return violations
+}
+
+func (server *Server) updateUser(ctx *gin.Context) {
+	req := new(updateUserRequest)
+	
+	if err := ctx.ShouldBindJSON(req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	
+	violations := validateUpdateUserRequest(req)
+	if violations != nil {
+		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		return
+	}
+	
+	arg := db.UpdateUserParams{
+		Username: req.getUserName(),
+		FullName: sql.NullString{
+			String: req.getFullName(),
+			Valid:  req.FullName != nil,
+		},
+		Email: sql.NullString{
+			String: req.getEmail(),
+			Valid:  req.Email != nil,
+		},
+	}
+	
+	if req.Password != nil {
+		hashedPassword, err := util.HashPassword(req.getPassword())
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+			return
+		}
+		
+		arg.HashedPassword = sql.NullString{
+			String: hashedPassword,
+			Valid:  true,
+		}
+		
+		arg.PasswordChangedAt = sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		}
+	}
+	
+	user, err := server.store.UpdateUser(context.Background(), arg)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = errors.New("user not found")
+			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			return
+		}
+		
+		err = fmt.Errorf("failed to update user: %w", err)
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	
+	ctx.JSON(http.StatusOK, user)
 }

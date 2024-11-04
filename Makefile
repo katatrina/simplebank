@@ -47,6 +47,10 @@ proto:
 evans:
 	evans --host localhost --port 9090 -r repl
 
+compose-down:
+	docker compose down
+	docker rmi simplebank-api
+
 server:
 	go run main.go
 

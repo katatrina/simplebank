@@ -24,7 +24,5 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
-#    volumes:
-#      - ./:/app
     environment:
       DATASOURCE_NAME: "postgresql://root:secret@postgres:5432/simple_bank?sslmode=disable"
