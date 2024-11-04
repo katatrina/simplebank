@@ -34,6 +34,9 @@ func NewServer(store db.Store, config util.Config) (*Server, error) {
 }
 
 func (server *Server) setupRouter() {
+	if server.config.Environment == "development" {
+		gin.ForceConsoleColor()
+	}
 	router := gin.Default()
 	
 	router.POST("/users", server.createUser)
