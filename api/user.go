@@ -85,6 +85,8 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 	
+	// TODO: Send verify email to user
+	
 	ctx.JSON(http.StatusOK, user)
 }
 
@@ -141,6 +143,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 	
 	err = util.CheckPassword(req.Password, user.HashedPassword)
 	if err != nil {
+		err = errors.New("incorrect password")
 		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
 		return
 	}

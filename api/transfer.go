@@ -30,22 +30,22 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 	
 	authPayload := ctx.MustGet(authorizationPayloadKey).(*jwt.RegisteredClaims)
 	
-	fromAccount, valid, err := server.validAccount(ctx, req.FromAccountID, req.Currency)
+	fromAccount, valid := server.validAccount(ctx, req.FromAccountID, req.Currency)
 	if !valid {
-		return // error already handled by validAccount
+		return
 	}
 	
 	// Verify account ownership
 	if fromAccount.Owner != authPayload.Subject {
-		err = errors.New("from account does not belong to the authenticated user")
+		err := errors.New("from account does not belong to the authenticated user")
 		ctx.JSON(http.StatusForbidden, errorResponse(err))
 		return
 	}
 	
 	// Check the to-account validity
-	_, valid, err = server.validAccount(ctx, req.ToAccountID, req.Currency)
+	_, valid = server.validAccount(ctx, req.ToAccountID, req.Currency)
 	if !valid {
-		return // error already handled by validAccount
+		return
 	}
 	
 	arg := db.TransferTxParams{
@@ -66,24 +66,24 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 
 // validAccount checks if an account exists and has the desired currency.
 // It also handles any errors in the response for the caller.
-func (server *Server) validAccount(ctx *gin.Context, accountID int64, currency string) (db.Account, bool, error) {
+func (server *Server) validAccount(ctx *gin.Context, accountID int64, currency string) (db.Account, bool) {
 	account, err := server.store.GetAccount(context.Background(), accountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			ctx.JSON(http.StatusNotFound, errorResponse(err))
-			return account, false, err
+			return account, false
 		}
 		
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return account, false, err
+		return account, false
 	}
 	
 	// Check currency match
 	if account.Currency != currency {
 		err = fmt.Errorf("account %d currency mismatch: %s vs %s", accountID, account.Currency, currency)
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return account, false, err
+		return account, false
 	}
 	
-	return account, true, nil
+	return account, true
 }
