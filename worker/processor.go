@@ -27,7 +27,7 @@ type RedisTaskProcessor struct {
 func NewRedisTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) TaskProcessor {
 	server := asynq.NewServer(
 		redisOpt,
-		asynq.Config{}, // We will use asynq predefined configuration.
+		asynq.Config{}, // Use predefined default configurations.
 	)
 	
 	return &RedisTaskProcessor{
@@ -36,6 +36,7 @@ func NewRedisTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) TaskPr
 	}
 }
 
+// Start registers the task handlers for the mux, attaches the mux to the asynq server, and starts the server.
 func (processor *RedisTaskProcessor) Start() error {
 	mux := asynq.NewServeMux()
 	

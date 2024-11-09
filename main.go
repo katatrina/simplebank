@@ -3,15 +3,12 @@ package main
 import (
 	"database/sql"
 	"log"
-	"net"
 	
+	"github.com/hibiken/asynq"
 	"github.com/katatrina/simplebank/api"
 	db "github.com/katatrina/simplebank/db/sqlc"
-	"github.com/katatrina/simplebank/gapi"
-	"github.com/katatrina/simplebank/pb"
 	"github.com/katatrina/simplebank/util"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	"github.com/katatrina/simplebank/worker"
 	
 	_ "github.com/lib/pq"
 )
@@ -34,34 +31,24 @@ func main() {
 	
 	store := db.NewStore(connPool)
 	
-	// runGrpcServer(config, store)
-	runHTTPServer(config, store)
+	redisOpt := asynq.RedisClientOpt{Addr: config.RedisServerAddress}
+	
+	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
+	go runTaskProcessor(redisOpt, store)
+	runHTTPServer(config, store, taskDistributor)
 }
 
-func runGrpcServer(config util.Config, store db.Store) {
-	server, err := gapi.NewServer(store, config)
+func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) {
+	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store)
+	log.Println("start task processor")
+	err := taskProcessor.Start()
 	if err != nil {
-		log.Fatalf("cannot create server <= %v", err)
-	}
-	
-	grpcServer := grpc.NewServer()
-	pb.RegisterSimpleBankServer(grpcServer, server)
-	reflection.Register(grpcServer)
-	
-	listener, err := net.Listen("tcp", config.GRPCServerAddress)
-	if err != nil {
-		log.Fatalf("cannot create listener <= %v", err)
-	}
-	
-	log.Printf("start gRPC server at %s", listener.Addr().String())
-	err = grpcServer.Serve(listener)
-	if err != nil {
-		log.Fatalf("cannot start gRPC server <= %v", err)
+		log.Fatalf("failed to start task processor <= %v", err)
 	}
 }
 
-func runHTTPServer(config util.Config, store db.Store) {
-	server, err := api.NewServer(store, config)
+func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor) {
+	server, err := api.NewServer(store, config, taskDistributor)
 	if err != nil {
 		log.Fatalf("cannot create HTTP server <= %v", err)
 	}
@@ -71,3 +58,25 @@ func runHTTPServer(config util.Config, store db.Store) {
 		log.Fatalf("cannot start HTTP server <= %v", err)
 	}
 }
+
+// func runGrpcServer(config util.Config, store db.Store) {
+// 	server, err := gapi.NewServer(store, config)
+// 	if err != nil {
+// 		log.Fatalf("cannot create server <= %v", err)
+// 	}
+//
+// 	grpcServer := grpc.NewServer()
+// 	pb.RegisterSimpleBankServer(grpcServer, server)
+// 	reflection.Register(grpcServer)
+//
+// 	listener, err := net.Listen("tcp", config.GRPCServerAddress)
+// 	if err != nil {
+// 		log.Fatalf("cannot create listener <= %v", err)
+// 	}
+//
+// 	log.Printf("start gRPC server at %s", listener.Addr().String())
+// 	err = grpcServer.Serve(listener)
+// 	if err != nil {
+// 		log.Fatalf("cannot start gRPC server <= %v", err)
+// 	}
+// }
