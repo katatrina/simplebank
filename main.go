@@ -2,13 +2,18 @@ package main
 
 import (
 	"database/sql"
-	"log"
+	"os"
+	
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	
 	"github.com/hibiken/asynq"
 	"github.com/katatrina/simplebank/api"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
+
 	"github.com/katatrina/simplebank/worker"
+
 	
 	_ "github.com/lib/pq"
 )
@@ -16,17 +21,21 @@ import (
 func main() {
 	config, err := util.LoadConfig("./app.env")
 	if err != nil {
-		log.Fatalf("cannot load config file: %v", err)
+		log.Fatal().Err(err).Msg("cannot load config file")
+	}
+	
+	if config.Environment == "development" {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 	
 	connPool, err := sql.Open(config.DriverName, config.DataSourceName)
 	if err != nil {
-		log.Fatalf("cannot connect to db: %v", err)
+		log.Fatal().Err(err).Msg("failed to validate db connection")
 	}
 	
 	pingErr := connPool.Ping()
 	if pingErr != nil {
-		log.Fatalf("cannot connect to db: %v", pingErr)
+		log.Fatal().Err(pingErr).Msg("failed to connect to db")
 	}
 	
 	store := db.NewStore(connPool)
@@ -49,13 +58,14 @@ func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) {
 
 func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor) {
 	server, err := api.NewServer(store, config, taskDistributor)
+
 	if err != nil {
-		log.Fatalf("cannot create HTTP server <= %v", err)
+		log.Fatal().Err(err).Msg("cannot create HTTP server")
 	}
 	
 	err = server.Start(config.HTTPServerAddress)
 	if err != nil {
-		log.Fatalf("cannot start HTTP server <= %v", err)
+		log.Fatal().Err(err).Msg("cannot start HTTP server")
 	}
 }
 
