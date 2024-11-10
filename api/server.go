@@ -9,6 +9,11 @@ import (
 	"github.com/katatrina/simplebank/util"
 )
 
+const (
+	ProductionEnvironment  = "production"
+	DevelopmentEnvironment = "development"
+)
+
 // Server serves HTTP requests for our banking service.
 type Server struct {
 	router     *gin.Engine
@@ -34,9 +39,13 @@ func NewServer(store db.Store, config util.Config) (*Server, error) {
 }
 
 func (server *Server) setupRouter() {
-	if server.config.Environment == "development" {
+	switch server.config.Environment {
+	case DevelopmentEnvironment:
 		gin.ForceConsoleColor()
+	case ProductionEnvironment:
+		gin.SetMode(gin.ReleaseMode)
 	}
+	
 	router := gin.Default()
 	
 	router.POST("/users", server.createUser)
