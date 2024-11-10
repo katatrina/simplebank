@@ -10,6 +10,7 @@ import (
 	
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
 	"github.com/katatrina/simplebank/validator"
@@ -90,7 +91,12 @@ func (server *Server) createUser(ctx *gin.Context) {
 	taskPayload := &worker.PayloadSendVerifyEmail{
 		Username: user.Username,
 	}
-	err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload)
+	opts := []asynq.Option{
+		asynq.MaxRetry(10),
+		asynq.ProcessIn(10 * time.Second),
+		asynq.Queue(worker.QueueCritical),
+	}
+	err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload, opts...)
 	if err != nil {
 		err = fmt.Errorf("failed to distribute task to send verify email: %s", err)
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
