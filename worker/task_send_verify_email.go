@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	
+	"github.com/rs/zerolog/log"
+	
 	"github.com/hibiken/asynq"
 )
 
@@ -30,12 +32,12 @@ func (distributor *RedisTaskDistributor) DistributeTaskSendVerifyEmail(
 	}
 	
 	task := asynq.NewTask(TaskSendVerifyEmail, jsonPayload, opts...)
-	_, err = distributor.client.EnqueueContext(ctx, task)
+	info, err := distributor.client.EnqueueContext(ctx, task)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue task: %w", err)
 	}
 	
-	// TODO: Log successful enqueue message
+	log.Info().Str("type", task.Type()).Bytes("payload", task.Payload()).Str("queue", info.Queue).Int("max_retry", info.MaxRetry).Msg("task enqueued")
 	
 	return nil
 }
@@ -49,7 +51,7 @@ func (processor *RedisTaskProcessor) ProcessTaskSendVerifyEmail(
 		return fmt.Errorf("failed to unmarshal payload: %w", asynq.SkipRetry)
 	}
 	
-	_, err := processor.store.GetUser(ctx, payload.Username)
+	user, err := processor.store.GetUser(ctx, payload.Username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("user does not exist: %w", asynq.SkipRetry)
@@ -59,6 +61,9 @@ func (processor *RedisTaskProcessor) ProcessTaskSendVerifyEmail(
 	}
 	
 	// TODO: send email to user
+	
+	log.Info().Str("type", task.Type()).Bytes("payload", task.Payload()).
+		Str("email", user.Email).Msg("processed task")
 	
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
 	"github.com/katatrina/simplebank/validator"
+	"github.com/katatrina/simplebank/worker"
 	"github.com/lib/pq"
 )
 
@@ -85,7 +86,16 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 	
-	// TODO: Send verify email to user
+	// TODO: use db transaction
+	taskPayload := &worker.PayloadSendVerifyEmail{
+		Username: user.Username,
+	}
+	err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload)
+	if err != nil {
+		err = fmt.Errorf("failed to distribute task to send verify email: %s", err)
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
 	
 	ctx.JSON(http.StatusOK, user)
 }

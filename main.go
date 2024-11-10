@@ -7,9 +7,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	
+	"github.com/hibiken/asynq"
 	"github.com/katatrina/simplebank/api"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
+
+	"github.com/katatrina/simplebank/worker"
+
 	
 	_ "github.com/lib/pq"
 )
@@ -36,11 +40,25 @@ func main() {
 	
 	store := db.NewStore(connPool)
 	
-	runHTTPServer(config, store)
+	redisOpt := asynq.RedisClientOpt{Addr: config.RedisServerAddress}
+	
+	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
+	go runTaskProcessor(redisOpt, store)
+	runHTTPServer(config, store, taskDistributor)
 }
 
-func runHTTPServer(config util.Config, store db.Store) {
-	server, err := api.NewServer(store, config)
+func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) {
+	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store)
+	log.Println("start task processor")
+	err := taskProcessor.Start()
+	if err != nil {
+		log.Fatalf("failed to start task processor <= %v", err)
+	}
+}
+
+func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor) {
+	server, err := api.NewServer(store, config, taskDistributor)
+
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create HTTP server")
 	}

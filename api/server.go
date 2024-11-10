@@ -7,6 +7,7 @@ import (
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/token"
 	"github.com/katatrina/simplebank/util"
+	"github.com/katatrina/simplebank/worker"
 )
 
 const (
@@ -16,22 +17,24 @@ const (
 
 // Server serves HTTP requests for our banking service.
 type Server struct {
-	router     *gin.Engine
-	store      db.Store
-	tokenMaker token.Maker
-	config     util.Config
+	router          *gin.Engine
+	store           db.Store
+	tokenMaker      token.Maker
+	config          util.Config
+	taskDistributor worker.TaskDistributor
 }
 
-func NewServer(store db.Store, config util.Config) (*Server, error) {
+func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDistributor) (*Server, error) {
 	tokenMaker, err := token.NewJWTMaker(config.TokenSecretKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create token maker <= %w", err)
 	}
 	
 	server := &Server{
-		store:      store,
-		tokenMaker: tokenMaker,
-		config:     config,
+		store:           store,
+		tokenMaker:      tokenMaker,
+		config:          config,
+		taskDistributor: taskDistributor,
 	}
 	
 	server.setupRouter()

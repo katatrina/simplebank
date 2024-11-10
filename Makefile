@@ -51,6 +51,9 @@ compose-down:
 	docker compose down
 	docker rmi simplebank-api
 
+redis:
+	docker run --name redis-server -p 6379:6379 -d redis:7-alpine
+
 server:
 	go run main.go
 
