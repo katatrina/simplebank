@@ -2,9 +2,7 @@ package worker
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	
 	"github.com/rs/zerolog/log"
@@ -53,9 +51,9 @@ func (processor *RedisTaskProcessor) ProcessTaskSendVerifyEmail(
 	
 	user, err := processor.store.GetUser(ctx, payload.Username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("user does not exist: %w", asynq.SkipRetry)
-		}
+		// if errors.Is(err, sql.ErrNoRows) {
+		// 	return fmt.Errorf("user does not exist: %w", asynq.SkipRetry)
+		// }
 		
 		return fmt.Errorf("failed to get user: %w", err)
 	}

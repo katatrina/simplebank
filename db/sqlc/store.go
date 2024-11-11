@@ -41,6 +41,7 @@ func (store *SQLStore) ExecTx(ctx context.Context, fn func(*Queries) error) erro
 		if rbErr != nil {
 			return fmt.Errorf("transaction error: %v, rollback error: %v", err, rbErr)
 		}
+		
 		return err
 	}
 	
