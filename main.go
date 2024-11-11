@@ -41,7 +41,11 @@ func main() {
 	
 	redisOpt := asynq.RedisClientOpt{Addr: config.RedisServerAddress}
 	
-	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
+	taskDistributor, err := worker.NewRedisTaskDistributor(redisOpt)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create task distributor")
+	}
+	
 	go runTaskProcessor(redisOpt, store)
 	runHTTPServer(config, store, taskDistributor)
 }

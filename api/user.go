@@ -16,6 +16,7 @@ import (
 	"github.com/katatrina/simplebank/validator"
 	"github.com/katatrina/simplebank/worker"
 	"github.com/lib/pq"
+	"github.com/rs/zerolog/log"
 )
 
 type createUserRequest struct {
@@ -65,14 +66,34 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 	
-	arg := db.CreateUserParams{
-		Username:       req.Username,
-		HashedPassword: hashedPassword,
-		FullName:       req.FullName,
-		Email:          req.Email,
+	arg := db.CreateUserTxParams{
+		CreateUserParams: db.CreateUserParams{
+			Username:       req.Username,
+			HashedPassword: hashedPassword,
+			FullName:       req.FullName,
+			Email:          req.Email,
+		},
+		AfterCreate: func(user db.User) error {
+			taskPayload := &worker.PayloadSendVerifyEmail{
+				Username: user.Username,
+			}
+			opts := []asynq.Option{
+				asynq.MaxRetry(10),
+				asynq.ProcessIn(10 * time.Second),
+				asynq.Queue(worker.QueueCritical),
+			}
+			
+			err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload, opts...)
+			if err != nil {
+				log.Error().Err(err).Str("type", worker.TaskSendVerifyEmail).Str("email", user.Email).Msg("failed to distribute task")
+				return fmt.Errorf("failed to send verify email to username: %s", user.Username)
+			}
+			
+			return nil
+		},
 	}
 	
-	user, err := server.store.CreateUser(context.Background(), arg)
+	txResult, err := server.store.CreateUserTx(context.Background(), arg)
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) {
@@ -87,23 +108,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 	
-	// TODO: use db transaction
-	taskPayload := &worker.PayloadSendVerifyEmail{
-		Username: user.Username,
-	}
-	opts := []asynq.Option{
-		asynq.MaxRetry(10),
-		asynq.ProcessIn(10 * time.Second),
-		asynq.Queue(worker.QueueCritical),
-	}
-	err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload, opts...)
-	if err != nil {
-		err = fmt.Errorf("failed to distribute task to send verify email: %s", err)
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
-	}
-	
-	ctx.JSON(http.StatusOK, user)
+	ctx.JSON(http.StatusOK, txResult.User)
 }
 
 type loginUserRequest struct {

@@ -63,7 +63,7 @@ func (processor *RedisTaskProcessor) ProcessTaskSendVerifyEmail(
 	// TODO: send email to user
 	
 	log.Info().Str("type", task.Type()).Bytes("payload", task.Payload()).
-		Str("email", user.Email).Msg("processed task")
+		Str("email", user.Email).Msg("task processed")
 	
 	return nil
 }
