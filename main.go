@@ -11,9 +11,8 @@ import (
 	"github.com/katatrina/simplebank/api"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
-
+	
 	"github.com/katatrina/simplebank/worker"
-
 	
 	_ "github.com/lib/pq"
 )
@@ -42,23 +41,28 @@ func main() {
 	
 	redisOpt := asynq.RedisClientOpt{Addr: config.RedisServerAddress}
 	
-	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
+	taskDistributor, err := worker.NewRedisTaskDistributor(redisOpt)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create task distributor")
+	}
+	
 	go runTaskProcessor(redisOpt, store)
 	runHTTPServer(config, store, taskDistributor)
 }
 
 func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) {
 	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store)
-	log.Println("start task processor")
+	log.Info().Msg("start task processor")
+	
 	err := taskProcessor.Start()
 	if err != nil {
-		log.Fatalf("failed to start task processor <= %v", err)
+		log.Fatal().Err(err).Msg("failed to start task processor")
 	}
 }
 
 func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor) {
 	server, err := api.NewServer(store, config, taskDistributor)
-
+	
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create HTTP server")
 	}

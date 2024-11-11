@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	ProductionEnvironment  = "production"
-	DevelopmentEnvironment = "development"
+	EnvironmentProduction = "production"
+	EnvironmentDevelop    = "development"
 )
 
 // Server serves HTTP requests for our banking service.
@@ -43,9 +43,9 @@ func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDi
 
 func (server *Server) setupRouter() {
 	switch server.config.Environment {
-	case DevelopmentEnvironment:
+	case EnvironmentDevelop:
 		gin.ForceConsoleColor()
-	case ProductionEnvironment:
+	case EnvironmentProduction:
 		gin.SetMode(gin.ReleaseMode)
 	}
 	
