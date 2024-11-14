@@ -10,7 +10,7 @@ type CreateUserTxParams struct {
 }
 
 type CreateUserTxResult struct {
-	User User
+	User
 }
 
 func (store *SQLStore) CreateUserTx(ctx context.Context, arg CreateUserTxParams) (CreateUserTxResult, error) {

@@ -26,6 +26,10 @@ type createUserRequest struct {
 	Email    string `json:"email"`
 }
 
+type createUserResponse struct {
+	User db.CreateUserTxResult `json:"user"`
+}
+
 func validateCreateUserRequest(req *createUserRequest) (violations []*validator.FieldViolation) {
 	if err := validator.ValidateUsername(req.Username); err != nil {
 		violations = append(violations, fieldViolation("username", err))
@@ -108,7 +112,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 	
-	ctx.JSON(http.StatusOK, txResult.User)
+	ctx.JSON(http.StatusOK, createUserResponse{User: txResult})
 }
 
 type loginUserRequest struct {

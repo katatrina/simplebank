@@ -26,6 +26,9 @@ MIGRATION_VERSION ?= 1
 migrate-force:
 	migrate -path db/migrations -database "$(DB_URL)" -verbose force "$(MIGRATION_VERSION)"
 
+new-migration:
+	migrate create -ext sql -dir db/migrations -seq -digits 6 $(name)
+
 test:
 	go test -v -cover ./...
 
