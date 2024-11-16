@@ -2,12 +2,11 @@ package gapi
 
 import (
 	"context"
-	"errors"
 	
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/pb"
 	"github.com/katatrina/simplebank/util"
-	"github.com/lib/pq"
+	
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,12 +26,8 @@ func (server *Server) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 	
 	user, err := server.store.CreateUser(ctx, arg)
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) {
-			switch pqErr.Code.Name() {
-			case "unique_violation":
-				return nil, status.Errorf(codes.AlreadyExists, "username or email already exists: %s", err)
-			}
+		if db.ErrorCode(err) == db.UniqueViolationCode {
+			return nil, status.Errorf(codes.AlreadyExists, "username taken")
 		}
 		
 		return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")

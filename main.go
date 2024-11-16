@@ -1,9 +1,10 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"os"
 	
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/katatrina/simplebank/mail"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -14,8 +15,6 @@ import (
 	"github.com/katatrina/simplebank/util"
 	
 	"github.com/katatrina/simplebank/worker"
-	
-	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -28,12 +27,12 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 	
-	connPool, err := sql.Open(config.DriverName, config.DataSourceName)
+	connPool, err := pgxpool.New(context.Background(), config.DataSourceName)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to validate db connection")
 	}
 	
-	pingErr := connPool.Ping()
+	pingErr := connPool.Ping(context.Background())
 	if pingErr != nil {
 		log.Fatal().Err(pingErr).Msg("failed to connect to db")
 	}

@@ -2,7 +2,6 @@ package gapi
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	
 	"github.com/google/uuid"
@@ -17,7 +16,7 @@ import (
 func (server *Server) LoginUser(ctx context.Context, req *pb.LoginUserRequest) (*pb.LoginUserResponse, error) {
 	user, err := server.store.GetUser(ctx, req.GetUsername())
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, db.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, "user not found")
 		}
 		

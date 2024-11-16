@@ -1,33 +1,31 @@
 package db
 
 import (
-	"database/sql"
-	"log"
+	"context"
 	"os"
 	"testing"
-
+	
+	"github.com/rs/zerolog/log"
+	
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/katatrina/simplebank/util"
-	_ "github.com/lib/pq"
 )
 
-var (
-	testQueries  *Queries
-	testConnPool *sql.DB
-)
+var testStore Store
 
 func TestMain(m *testing.M) {
 	config, err := util.LoadConfig("../../app.env")
 	if err != nil {
-		log.Fatalf("cannot load config: %v", err)
+		log.Fatal().Err(err).Msg("cannot load config file")
 	}
-
-	testConnPool, err = sql.Open(config.DriverName, config.DataSourceName)
+	
+	connPool, err := pgxpool.New(context.Background(), config.DataSourceName)
 	if err != nil {
-		log.Fatal("cannot connect to db:", err)
+		log.Fatal().Err(err).Msg("Failed to create connection pool")
 	}
-	defer testConnPool.Close()
-
-	testQueries = New(testConnPool)
-
+	defer connPool.Close()
+	
+	testStore = NewStore(connPool)
+	
 	os.Exit(m.Run())
 }

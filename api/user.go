@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/util"
 	"github.com/katatrina/simplebank/validator"
 	"github.com/katatrina/simplebank/worker"
-	"github.com/lib/pq"
 	"github.com/rs/zerolog/log"
 )
 
@@ -99,13 +98,9 @@ func (server *Server) createUser(ctx *gin.Context) {
 	
 	txResult, err := server.store.CreateUserTx(context.Background(), arg)
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) {
-			switch pqErr.Code.Name() {
-			case "unique_violation":
-				ctx.JSON(http.StatusUnprocessableEntity, errorResponse(err))
-				return
-			}
+		if db.ErrorCode(err) == db.UniqueViolationCode {
+			ctx.JSON(http.StatusForbidden, errorResponse(err))
+			return
 		}
 		
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
@@ -157,7 +152,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 	
 	user, err := server.store.GetUser(context.Background(), req.Username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, db.ErrRecordNotFound) {
 			ctx.JSON(http.StatusBadRequest, errorResponse(err))
 			return
 		}
@@ -298,11 +293,11 @@ func (server *Server) updateUser(ctx *gin.Context) {
 	
 	arg := db.UpdateUserParams{
 		Username: req.getUserName(),
-		FullName: sql.NullString{
+		FullName: pgtype.Text{
 			String: req.getFullName(),
 			Valid:  req.FullName != nil,
 		},
-		Email: sql.NullString{
+		Email: pgtype.Text{
 			String: req.getEmail(),
 			Valid:  req.Email != nil,
 		},
@@ -315,12 +310,12 @@ func (server *Server) updateUser(ctx *gin.Context) {
 			return
 		}
 		
-		arg.HashedPassword = sql.NullString{
+		arg.HashedPassword = pgtype.Text{
 			String: hashedPassword,
 			Valid:  true,
 		}
 		
-		arg.PasswordChangedAt = sql.NullTime{
+		arg.PasswordChangedAt = pgtype.Timestamptz{
 			Time:  time.Now(),
 			Valid: true,
 		}
@@ -328,7 +323,7 @@ func (server *Server) updateUser(ctx *gin.Context) {
 	
 	user, err := server.store.UpdateUser(context.Background(), arg)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, db.ErrRecordNotFound) {
 			err = errors.New("user not found")
 			ctx.JSON(http.StatusNotFound, errorResponse(err))
 			return
