@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	
+	"github.com/katatrina/simplebank/mail"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	
@@ -46,12 +47,13 @@ func main() {
 		log.Fatal().Err(err).Msg("cannot create task distributor")
 	}
 	
-	go runTaskProcessor(redisOpt, store)
+	go runTaskProcessor(config, redisOpt, store)
 	runHTTPServer(config, store, taskDistributor)
 }
 
-func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store) {
-	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store)
+func runTaskProcessor(config util.Config, redisOpt asynq.RedisClientOpt, store db.Store) {
+	mailer := mail.NewGmailSender(config.EmailSenderName, config.EmailSenderAddress, config.EmailSenderPassword)
+	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store, mailer)
 	log.Info().Msg("start task processor")
 	
 	err := taskProcessor.Start()

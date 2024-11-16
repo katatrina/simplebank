@@ -26,6 +26,10 @@ type createUserRequest struct {
 	Email    string `json:"email"`
 }
 
+type createUserResponse struct {
+	User db.User `json:"user"`
+}
+
 func validateCreateUserRequest(req *createUserRequest) (violations []*validator.FieldViolation) {
 	if err := validator.ValidateUsername(req.Username); err != nil {
 		violations = append(violations, fieldViolation("username", err))
@@ -108,7 +112,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 	
-	ctx.JSON(http.StatusOK, txResult.User)
+	ctx.JSON(http.StatusOK, createUserResponse{User: txResult.User})
 }
 
 type loginUserRequest struct {
@@ -336,4 +340,55 @@ func (server *Server) updateUser(ctx *gin.Context) {
 	}
 	
 	ctx.JSON(http.StatusOK, user)
+}
+
+type verifyUserEmailRequest struct {
+	EmailID    int64  `form:"email_id"`
+	SecretCode string `form:"secret_code"`
+}
+
+type verifyUserEmailResponse struct {
+	IsVerified bool `json:"is_verified"`
+}
+
+func validateVerifyUserEmailRequest(req *verifyUserEmailRequest) (violations []*validator.FieldViolation) {
+	if err := validator.ValidateEmailID(req.EmailID); err != nil {
+		violations = append(violations, fieldViolation("email_id", err))
+	}
+	
+	if err := validator.ValidateSecretCode(req.SecretCode); err != nil {
+		violations = append(violations, fieldViolation("secret_code", err))
+	}
+	
+	return violations
+}
+
+func (server *Server) verifyUserEmail(ctx *gin.Context) {
+	req := new(verifyUserEmailRequest)
+	
+	if err := ctx.ShouldBindQuery(req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	
+	violations := validateVerifyUserEmailRequest(req)
+	if violations != nil {
+		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		return
+	}
+	
+	txResult, err := server.store.VerifyUserEmailTx(context.Background(), db.VerifyUserEmailTxParams{
+		EmailID:    req.EmailID,
+		SecretCode: req.SecretCode,
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to verify email: %w", err)
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	
+	resp := verifyUserEmailResponse{
+		IsVerified: txResult.User.IsEmailVerified,
+	}
+	ctx.JSON(http.StatusOK, resp)
 }

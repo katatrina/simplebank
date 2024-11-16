@@ -50,14 +50,16 @@ func (server *Server) setupRouter() {
 	}
 	
 	router := gin.Default()
+	v1 := router.Group("/v1")
 	
-	router.POST("/users", server.createUser)
-	router.PATCH("/users", authMiddleware(server.tokenMaker), server.updateUser)
-	router.POST("/users/login", server.loginUser)
+	v1.POST("/users", server.createUser)
+	v1.PATCH("/users", authMiddleware(server.tokenMaker), server.updateUser)
+	v1.POST("/users/login", server.loginUser)
+	v1.GET("/users/verify_email", server.verifyUserEmail)
 	
-	router.POST("/tokens/renew_access", server.renewAccessToken)
+	v1.POST("/tokens/renew_access", server.renewAccessToken)
 	
-	authRoutes := router.Group("/", authMiddleware(server.tokenMaker))
+	authRoutes := v1.Group("/", authMiddleware(server.tokenMaker))
 	authRoutes.POST("accounts", server.createAccount)
 	authRoutes.GET("accounts/:id", server.getAccount)
 	authRoutes.GET("accounts", server.listAccounts)

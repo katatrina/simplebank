@@ -10,8 +10,19 @@ Table users as U {
   hashes_password text [not null]
   full_name text [not null]
   email text [not null, unique]
+  is_email_verified bool [not null, default: false]
   password_changed_at timestamptz [not null, default: '0001-01-01 00:00:00Z']
   created_at timestamptz [default: `now()`, not null]
+}
+
+Table verify_emails {
+    id bigserial [pk]
+    username text [ref: > U.username, not null]
+    email text [not null]
+    secret_code text [not null]
+    is_used bool [not null, default: false]
+    expires_at timestamptz [not null, default: `now() + interval '15 minutes'`]
+    created_at timestamptz [not null, default: `now()`]
 }
 
 Table accounts as A {
