@@ -20,38 +20,34 @@ import (
 func main() {
 	config, err := util.LoadConfig("./app.env")
 	if err != nil {
-		log.Fatal().Err(err).Msg("cannot load config file")
+		log.Fatal().Err(err).Msg("failed to load config file")
 	}
 	
 	if config.Environment == "development" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 	
-	connPool, err := pgxpool.New(context.Background(), config.DataSourceName)
+	connPool, err := pgxpool.New(context.Background(), config.DatabaseURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to validate db connection")
 	}
 	
-	pingErr := connPool.Ping(context.Background())
-	if pingErr != nil {
-		log.Fatal().Err(pingErr).Msg("failed to connect to db")
-	}
-	
 	store := db.NewStore(connPool)
+	
+	mailer, err := mail.NewGmailSender(config.EmailSenderName, config.EmailSenderAddress, config.EmailSenderPassword)
+	if err != nil {
+		log.Err(err).Msg("failed to establish our email client")
+	}
 	
 	redisOpt := asynq.RedisClientOpt{Addr: config.RedisServerAddress}
 	
-	taskDistributor, err := worker.NewRedisTaskDistributor(redisOpt)
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot create task distributor")
-	}
+	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
 	
-	go runTaskProcessor(config, redisOpt, store)
-	runHTTPServer(config, store, taskDistributor)
+	go runTaskProcessor(redisOpt, store, mailer)
+	runHTTPServer(config, store, taskDistributor, mailer)
 }
 
-func runTaskProcessor(config util.Config, redisOpt asynq.RedisClientOpt, store db.Store) {
-	mailer := mail.NewGmailSender(config.EmailSenderName, config.EmailSenderAddress, config.EmailSenderPassword)
+func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender) {
 	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store, mailer)
 	log.Info().Msg("start task processor")
 	
@@ -61,16 +57,16 @@ func runTaskProcessor(config util.Config, redisOpt asynq.RedisClientOpt, store d
 	}
 }
 
-func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor) {
-	server, err := api.NewServer(store, config, taskDistributor)
+func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor, mailer mail.EmailSender) {
+	server, err := api.NewServer(store, config, taskDistributor, mailer)
 	
 	if err != nil {
-		log.Fatal().Err(err).Msg("cannot create HTTP server")
+		log.Fatal().Err(err).Msg("failed to create HTTP server")
 	}
 	
 	err = server.Start(config.HTTPServerAddress)
 	if err != nil {
-		log.Fatal().Err(err).Msg("cannot start HTTP server")
+		log.Fatal().Err(err).Msg("failed to start HTTP server")
 	}
 }
 

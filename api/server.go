@@ -5,6 +5,7 @@ import (
 	
 	"github.com/gin-gonic/gin"
 	db "github.com/katatrina/simplebank/db/sqlc"
+	"github.com/katatrina/simplebank/mail"
 	"github.com/katatrina/simplebank/token"
 	"github.com/katatrina/simplebank/util"
 	"github.com/katatrina/simplebank/worker"
@@ -22,9 +23,10 @@ type Server struct {
 	tokenMaker      token.Maker
 	config          util.Config
 	taskDistributor worker.TaskDistributor
+	mailer          mail.EmailSender
 }
 
-func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDistributor) (*Server, error) {
+func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDistributor, mailer mail.EmailSender) (*Server, error) {
 	tokenMaker, err := token.NewJWTMaker(config.TokenSecretKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create token maker <= %w", err)
@@ -35,6 +37,7 @@ func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDi
 		tokenMaker:      tokenMaker,
 		config:          config,
 		taskDistributor: taskDistributor,
+		mailer:          mailer,
 	}
 	
 	server.setupRouter()
@@ -52,6 +55,8 @@ func (server *Server) setupRouter() {
 	router := gin.Default()
 	v1 := router.Group("/v1")
 	
+	v1.GET("/health", server.healthCheck)
+	
 	v1.POST("/users", server.createUser)
 	v1.PATCH("/users", authMiddleware(server.tokenMaker), server.updateUser)
 	v1.POST("/users/login", server.loginUser)
@@ -60,11 +65,11 @@ func (server *Server) setupRouter() {
 	v1.POST("/tokens/renew_access", server.renewAccessToken)
 	
 	authRoutes := v1.Group("/", authMiddleware(server.tokenMaker))
-	authRoutes.POST("accounts", server.createAccount)
-	authRoutes.GET("accounts/:id", server.getAccount)
-	authRoutes.GET("accounts", server.listAccounts)
+	authRoutes.POST("/accounts", server.createAccount)
+	authRoutes.GET("/accounts/:id", server.getAccount)
+	authRoutes.GET("/accounts", server.listAccounts)
 	
-	authRoutes.POST("transfers", server.createTransfer)
+	authRoutes.POST("/transfers", server.createTransfer)
 	
 	server.router = router
 }

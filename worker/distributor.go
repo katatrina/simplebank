@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	
 	"github.com/hibiken/asynq"
 )
@@ -17,20 +16,22 @@ type TaskDistributor interface {
 		payload *PayloadSendVerifyEmail,
 		opts ...asynq.Option,
 	) error
+	Ping() error
 }
 
 type RedisTaskDistributor struct {
 	client *asynq.Client // client sends tasks to redis queue.
 }
 
-func NewRedisTaskDistributor(redisOpt asynq.RedisClientOpt) (TaskDistributor, error) {
+func NewRedisTaskDistributor(redisOpt asynq.RedisClientOpt) TaskDistributor {
 	client := asynq.NewClient(redisOpt)
-	err := client.Ping()
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to redis server: %w", err)
-	}
 	
 	return &RedisTaskDistributor{
 		client: client,
-	}, nil
+	}
+}
+
+// Ping checks if the Redis connection is alive.
+func (distributor *RedisTaskDistributor) Ping() error {
+	return distributor.client.Ping()
 }

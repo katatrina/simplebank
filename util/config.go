@@ -10,7 +10,7 @@ import (
 // The values are read by viper from a config file or environment variables.
 type Config struct {
 	Environment          string        `mapstructure:"ENVIRONMENT"`
-	DataSourceName       string        `mapstructure:"DATASOURCE_NAME"`
+	DatabaseURL          string        `mapstructure:"DATABASE_URL"`
 	HTTPServerAddress    string        `mapstructure:"HTTP_SERVER_ADDRESS"`
 	GRPCServerAddress    string        `mapstructure:"GRPC_SERVER_ADDRESS"`
 	TokenSecretKey       string        `mapstructure:"TOKEN_SECRET_KEY"`

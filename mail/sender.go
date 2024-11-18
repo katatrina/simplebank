@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"fmt"
 	
 	"github.com/wneessen/go-mail"
@@ -20,20 +21,34 @@ type EmailSender interface {
 		bcc []string,
 		attachFiles []string,
 	) error
+	Ping(ctx context.Context) error
 }
 
 type GmailSender struct {
-	name              string
-	fromEmailAddress  string
-	fromEmailPassword string
+	name             string
+	fromEmailAddress string
+	client           *mail.Client
 }
 
-func NewGmailSender(name, fromEmailAddress, fromEmailPassword string) EmailSender {
-	return &GmailSender{
-		name:              name,
-		fromEmailAddress:  fromEmailAddress,
-		fromEmailPassword: fromEmailPassword,
+func NewGmailSender(name, fromEmailAddress, fromEmailPassword string) (EmailSender, error) {
+	client, err := mail.NewClient(smtpGmailHost, mail.WithPort(smtpGmailPort),
+		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(fromEmailAddress), mail.WithPassword(fromEmailPassword))
+	if err != nil {
+		return nil, err
 	}
+	
+	// Test connection
+	// err = client.DialWithContext(context.Background())
+	// if err != nil {
+	// 	return nil, err
+	// }
+	
+	return &GmailSender{
+		name:             name,
+		fromEmailAddress: fromEmailAddress,
+		client:           client,
+	}, nil
 }
 
 func (sender *GmailSender) SendEmail(
@@ -69,16 +84,14 @@ func (sender *GmailSender) SendEmail(
 		message.AttachFile(file)
 	}
 	
-	client, err := mail.NewClient(smtpGmailHost, mail.WithPort(smtpGmailPort),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(sender.fromEmailAddress), mail.WithPassword(sender.fromEmailPassword))
-	if err != nil {
-		return fmt.Errorf("failed to establish our email client: %w", err)
-	}
-	
-	if err = client.DialAndSend(message); err != nil {
+	if err := sender.client.DialAndSend(message); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 	
 	return nil
+}
+
+// Ping checks if the email client is connected to the SMTP server.
+func (sender *GmailSender) Ping(ctx context.Context) error {
+	return sender.client.DialWithContext(ctx)
 }

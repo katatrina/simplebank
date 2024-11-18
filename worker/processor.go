@@ -48,6 +48,12 @@ func NewRedisTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer
 		},
 	)
 	
+	// Test connection
+	// err := server.Ping()
+	// if err != nil {
+	// 	log.Fatal().Err(err).Msg("failed to connect to Redis server")
+	// }
+	
 	return &RedisTaskProcessor{
 		server: server,
 		store:  store,

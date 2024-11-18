@@ -1,8 +1,18 @@
 name: simplebank
 
 services:
+  redis:
+    image: redis:7.4.1-alpine3.20
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15.9-alpine3.20
     ports:
       - "5432:5432"
     environment:
@@ -22,7 +32,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
-      DATASOURCE_NAME: "postgresql://root:secret@postgres:5432/simple_bank?sslmode=disable"
+      DATABASE_URL: "postgres://root:secret@postgres:5432/simple_bank?sslmode=disable"
+      REDIS_SERVER_ADDRESS: "redis:6379"
