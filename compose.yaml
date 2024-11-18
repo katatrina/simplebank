@@ -13,6 +13,8 @@ services:
 
   postgres:
     image: postgres:15.9-alpine3.20
+    volumes:
+      - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     environment:
@@ -39,3 +41,6 @@ services:
     environment:
       DATABASE_URL: "postgres://root:secret@postgres:5432/simple_bank?sslmode=disable"
       REDIS_SERVER_ADDRESS: "redis:6379"
+
+volumes:
+  db-data:
