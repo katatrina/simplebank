@@ -7,8 +7,8 @@ import (
 	"net/http"
 	
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	db "github.com/katatrina/simplebank/db/sqlc"
+	"github.com/katatrina/simplebank/token"
 )
 
 type createTransferRequest struct {
@@ -27,7 +27,7 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 		return
 	}
 	
-	authPayload := ctx.MustGet(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	
 	fromAccount, valid := server.validAccount(ctx, req.FromAccountID, req.Currency)
 	if !valid {

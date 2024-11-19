@@ -12,6 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/katatrina/simplebank/db/sqlc"
+	"github.com/katatrina/simplebank/token"
 	"github.com/katatrina/simplebank/util"
 	"github.com/katatrina/simplebank/validator"
 	"github.com/katatrina/simplebank/worker"
@@ -106,6 +107,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
+	ctx.Header("Location", fmt.Sprintf("/v1/users/%s", txResult.User.Username))
 	
 	ctx.JSON(http.StatusOK, createUserResponse{User: txResult.User})
 }
@@ -168,13 +170,13 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		return
 	}
 	
-	accessToken, accessPayload, err := server.tokenMaker.CreateToken(user.Username, server.config.AccessTokenDuration)
+	accessToken, accessPayload, err := server.tokenMaker.CreateToken(user.Username, user.Role, server.config.AccessTokenDuration)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
 	
-	refreshToken, refreshPayload, err := server.tokenMaker.CreateToken(user.Username, server.config.RefreshTokenDuration)
+	refreshToken, refreshPayload, err := server.tokenMaker.CreateToken(user.Username, user.Role, server.config.RefreshTokenDuration)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
@@ -288,6 +290,14 @@ func (server *Server) updateUser(ctx *gin.Context) {
 	violations := validateUpdateUserRequest(req)
 	if violations != nil {
 		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		return
+	}
+	
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
+	
+	if authPayload.Role != util.BankerRole && authPayload.Subject != req.getUserName() {
+		err := errors.New("cannot update other user's information")
+		ctx.JSON(http.StatusForbidden, errorResponse(err))
 		return
 	}
 	

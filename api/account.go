@@ -6,8 +6,8 @@ import (
 	"net/http"
 	
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	db "github.com/katatrina/simplebank/db/sqlc"
+	"github.com/katatrina/simplebank/token"
 )
 
 type createAccountRequest struct {
@@ -24,7 +24,7 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	}
 	
 	// Extracting JWT claims
-	authPayload := ctx.MustGet(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	
 	arg := db.CreateAccountParams{
 		Owner:    authPayload.Subject,
@@ -73,7 +73,7 @@ func (server *Server) getAccount(ctx *gin.Context) {
 	}
 	
 	// Verifying account ownership
-	authPayload := ctx.MustGet(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	if account.Owner != authPayload.Subject {
 		err = errors.New("requested account does not belong to the authenticated user")
 		ctx.JSON(http.StatusForbidden, errorResponse(err))
@@ -97,7 +97,7 @@ func (server *Server) listAccounts(ctx *gin.Context) {
 		return
 	}
 	
-	authPayload := ctx.MustGet(authorizationPayloadKey).(*jwt.RegisteredClaims)
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	
 	arg := db.ListAccountsByOwnerParams{
 		Owner:  authPayload.Subject,

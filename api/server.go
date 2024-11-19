@@ -58,13 +58,13 @@ func (server *Server) setupRouter() {
 	v1.GET("/health", server.healthCheck)
 	
 	v1.POST("/users", server.createUser)
-	v1.PATCH("/users", authMiddleware(server.tokenMaker), server.updateUser)
+	v1.PATCH("/users", authMiddleware(server.tokenMaker, []string{util.BankerRole, util.DepositorRole}), server.updateUser)
 	v1.POST("/users/login", server.loginUser)
 	v1.GET("/users/verify_email", server.verifyUserEmail)
 	
 	v1.POST("/tokens/renew_access", server.renewAccessToken)
 	
-	authRoutes := v1.Group("/", authMiddleware(server.tokenMaker))
+	authRoutes := v1.Group("/", authMiddleware(server.tokenMaker, []string{util.DepositorRole}))
 	authRoutes.POST("/accounts", server.createAccount)
 	authRoutes.GET("/accounts/:id", server.getAccount)
 	authRoutes.GET("/accounts", server.listAccounts)

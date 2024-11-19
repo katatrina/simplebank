@@ -13,7 +13,7 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (username, hashed_password, full_name, email)
-VALUES ($1, $2, $3, $4) RETURNING username, hashed_password, full_name, email, password_changed_at, created_at, is_email_verified
+VALUES ($1, $2, $3, $4) RETURNING username, role, hashed_password, full_name, email, is_email_verified, password_changed_at, created_at
 `
 
 type CreateUserParams struct {
@@ -33,18 +33,19 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	var i User
 	err := row.Scan(
 		&i.Username,
+		&i.Role,
 		&i.HashedPassword,
 		&i.FullName,
 		&i.Email,
+		&i.IsEmailVerified,
 		&i.PasswordChangedAt,
 		&i.CreatedAt,
-		&i.IsEmailVerified,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT username, hashed_password, full_name, email, password_changed_at, created_at, is_email_verified
+SELECT username, role, hashed_password, full_name, email, is_email_verified, password_changed_at, created_at
 FROM users
 WHERE username = $1
 `
@@ -54,12 +55,13 @@ func (q *Queries) GetUser(ctx context.Context, username string) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.Username,
+		&i.Role,
 		&i.HashedPassword,
 		&i.FullName,
 		&i.Email,
+		&i.IsEmailVerified,
 		&i.PasswordChangedAt,
 		&i.CreatedAt,
-		&i.IsEmailVerified,
 	)
 	return i, err
 }
@@ -71,7 +73,7 @@ SET full_name           = COALESCE($1, full_name),
     hashed_password     = COALESCE($3, hashed_password),
     password_changed_at = COALESCE($4, password_changed_at),
     is_email_verified   = COALESCE($5, is_email_verified)
-WHERE username = $6 RETURNING username, hashed_password, full_name, email, password_changed_at, created_at, is_email_verified
+WHERE username = $6 RETURNING username, role, hashed_password, full_name, email, is_email_verified, password_changed_at, created_at
 `
 
 type UpdateUserParams struct {
@@ -95,12 +97,13 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 	var i User
 	err := row.Scan(
 		&i.Username,
+		&i.Role,
 		&i.HashedPassword,
 		&i.FullName,
 		&i.Email,
+		&i.IsEmailVerified,
 		&i.PasswordChangedAt,
 		&i.CreatedAt,
-		&i.IsEmailVerified,
 	)
 	return i, err
 }

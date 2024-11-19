@@ -16,7 +16,7 @@ const (
 )
 
 // authMiddleware requires the client to provide a valid access token.
-func authMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
+func authMiddleware(tokenMaker token.Maker, accessibleRoles []string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authorizationHeader := ctx.GetHeader(authorizationHeaderKey)
 		if authorizationHeader == "" {
@@ -45,7 +45,23 @@ func authMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
 			return
 		}
 		
+		if !hasPermissions(payload.Role, accessibleRoles) {
+			err = errors.New("permission denied")
+			ctx.AbortWithStatusJSON(http.StatusForbidden, errorResponse(err))
+			return
+		}
+		
 		ctx.Set(authorizationPayloadKey, payload)
 		ctx.Next()
 	}
+}
+
+func hasPermissions(userRole string, accessibleRoles []string) bool {
+	for _, role := range accessibleRoles {
+		if userRole == role {
+			return true
+		}
+	}
+	
+	return false
 }
