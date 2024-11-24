@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"os"
 	
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,16 +40,23 @@ func main() {
 		log.Err(err).Msg("failed to establish our email client")
 	}
 	
-	redisOpt := asynq.RedisClientOpt{Addr: config.RedisServerAddress}
+	redisOpt := asynq.RedisClientOpt{
+		Addr:     config.RedisServerAddress,
+		Password: config.RedisServerPassword,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
 	
 	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
 	
-	go runTaskProcessor(redisOpt, store, mailer)
+	go runTaskProcessor(redisOpt, store, mailer, config)
 	runHTTPServer(config, store, taskDistributor, mailer)
 }
 
-func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender) {
-	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store, mailer)
+// runTaskProcessor creates a new task processor and starts it.
+func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender, config util.Config) {
+	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store, mailer, config)
 	log.Info().Msg("start task processor")
 	
 	err := taskProcessor.Start()
