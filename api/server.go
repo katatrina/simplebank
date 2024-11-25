@@ -29,7 +29,7 @@ type Server struct {
 func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDistributor, mailer mail.EmailSender) (*Server, error) {
 	tokenMaker, err := token.NewJWTMaker(config.TokenSecretKey)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create token maker <= %w", err)
+		return nil, fmt.Errorf("cannot create token maker: %w", err)
 	}
 	
 	server := &Server{
@@ -44,6 +44,7 @@ func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDi
 	return server, nil
 }
 
+// setupRouter configures the HTTP server routes.
 func (server *Server) setupRouter() {
 	switch server.config.Environment {
 	case EnvironmentDevelop:
@@ -57,10 +58,13 @@ func (server *Server) setupRouter() {
 	
 	v1.GET("/health", server.healthCheck)
 	
-	v1.POST("/users", server.createUser)
-	v1.PATCH("/users", authMiddleware(server.tokenMaker, []string{util.BankerRole, util.DepositorRole}), server.updateUser)
-	v1.POST("/users/login", server.loginUser)
-	v1.GET("/users/verify_email", server.verifyUserEmail)
+	userGroup := v1.Group("/users")
+	{
+		userGroup.POST("", server.createUser)
+		userGroup.PATCH("", authMiddleware(server.tokenMaker, []string{util.BankerRole, util.DepositorRole}), server.updateUser)
+		userGroup.POST("/login", server.loginUser)
+		userGroup.GET("/verify_email", server.verifyUserEmail)
+	}
 	
 	v1.POST("/tokens/renew_access", server.renewAccessToken)
 	
@@ -77,8 +81,4 @@ func (server *Server) setupRouter() {
 // Start runs the HTTP server on a specific address.
 func (server *Server) Start(address string) error {
 	return server.router.Run(address)
-}
-
-func errorResponse(err error) gin.H {
-	return gin.H{"message": err.Error()}
 }

@@ -7,7 +7,7 @@ import (
 )
 
 /*
-This file will contain the codes to create tasks and distributes them to the workers via Redis queue.
+This file will contain the codes to create tasks and distributes them to the Redis queue.
 */
 
 type TaskDistributor interface {

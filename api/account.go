@@ -35,7 +35,7 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	// Creating an account
 	account, err := server.store.CreateAccount(context.Background(), arg)
 	if err != nil {
-		errCode := db.ErrorCode(err)
+		errCode, _ := db.ErrorDescription(err)
 		if errCode == db.UniqueViolationCode || errCode == db.ForeignKeyViolationCode {
 			ctx.JSON(http.StatusForbidden, errorResponse(err))
 			return

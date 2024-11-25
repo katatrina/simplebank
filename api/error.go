@@ -1,24 +1,33 @@
 package api
 
 import (
-	"github.com/katatrina/simplebank/validator"
+	"github.com/gin-gonic/gin"
 )
 
-type badRequest struct {
-	Message         string                      `json:"message"`
-	FieldViolations []*validator.FieldViolation `json:"field_violations"`
+type FailedViolationRequest struct {
+	Message         string            `json:"message"`
+	FieldViolations []*FieldViolation `json:"field_violations"`
 }
 
-func fieldViolation(field string, err error) *validator.FieldViolation {
-	return &validator.FieldViolation{
+type FieldViolation struct {
+	Field       string `json:"field"`
+	Description string `json:"description"`
+}
+
+func fieldViolation(field string, err error) *FieldViolation {
+	return &FieldViolation{
 		Field:       field,
 		Description: err.Error(),
 	}
 }
 
-func invalidArgumentError(violations []*validator.FieldViolation) *badRequest {
-	return &badRequest{
-		Message:         "Invalid argument(s) for the request",
+func errorResponse(err error) gin.H {
+	return gin.H{"message": err.Error()}
+}
+
+func failedViolationError(violations []*FieldViolation) *FailedViolationRequest {
+	return &FailedViolationRequest{
+		Message:         "Invalid request parameters",
 		FieldViolations: violations,
 	}
 }

@@ -38,12 +38,6 @@ func NewGmailSender(name, fromEmailAddress, fromEmailPassword string) (EmailSend
 		return nil, err
 	}
 	
-	// Test connection
-	// err = client.DialWithContext(context.Background())
-	// if err != nil {
-	// 	return nil, err
-	// }
-	
 	return &GmailSender{
 		name:             name,
 		fromEmailAddress: fromEmailAddress,

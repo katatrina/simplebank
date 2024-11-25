@@ -6,7 +6,6 @@ import (
 	"github.com/hibiken/asynq"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/mail"
-	"github.com/katatrina/simplebank/util"
 	"github.com/rs/zerolog/log"
 )
 
@@ -29,12 +28,11 @@ type TaskProcessor interface {
 
 type RedisTaskProcessor struct {
 	server *asynq.Server
-	store  db.Store
-	mailer mail.EmailSender
-	config util.Config
+	store  db.Store         // store is used to access the database.
+	mailer mail.EmailSender // mailer is used to send emails.
 }
 
-func NewRedisTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender, config util.Config) TaskProcessor {
+func NewRedisTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender) TaskProcessor {
 	server := asynq.NewServer(
 		redisOpt,
 		asynq.Config{
@@ -50,17 +48,10 @@ func NewRedisTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer
 		},
 	)
 	
-	// Test connection
-	// err := server.Ping()
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("failed to connect to Redis server")
-	// }
-	
 	return &RedisTaskProcessor{
 		server: server,
 		store:  store,
 		mailer: mailer,
-		config: config,
 	}
 }
 

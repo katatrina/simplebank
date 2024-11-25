@@ -6,7 +6,7 @@ import (
 
 type CreateUserTxParams struct {
 	CreateUserParams
-	AfterCreate func(user User) error // function to be called after creating the user, inside the same transaction.
+	AfterCreate func(user User) error
 }
 
 type CreateUserTxResult struct {

@@ -30,7 +30,7 @@ type createUserResponse struct {
 	User db.User `json:"user"`
 }
 
-func validateCreateUserRequest(req *createUserRequest) (violations []*validator.FieldViolation) {
+func validateCreateUserRequest(req *createUserRequest) (violations []*FieldViolation) {
 	if err := validator.ValidateUsername(req.Username); err != nil {
 		violations = append(violations, fieldViolation("username", err))
 	}
@@ -60,13 +60,13 @@ func (server *Server) createUser(ctx *gin.Context) {
 	
 	violations := validateCreateUserRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		ctx.JSON(http.StatusUnprocessableEntity, failedViolationError(violations))
 		return
 	}
 	
 	hashedPassword, err := util.HashPassword(req.Password)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(fmt.Errorf("failed to hash password: %w", err)))
 		return
 	}
 	
@@ -77,20 +77,20 @@ func (server *Server) createUser(ctx *gin.Context) {
 			FullName:       req.FullName,
 			Email:          req.Email,
 		},
-		AfterCreate: func(user db.User) error {
+		AfterCreate: func(createdUser db.User) error { // Called after the user is created, inside the same transaction.
 			taskPayload := &worker.PayloadSendVerifyEmail{
-				Username: user.Username,
+				Username: createdUser.Username,
 			}
 			opts := []asynq.Option{
-				asynq.MaxRetry(10),
 				asynq.ProcessIn(10 * time.Second),
+				asynq.MaxRetry(10),
 				asynq.Queue(worker.QueueCritical),
 			}
 			
 			err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload, opts...)
 			if err != nil {
-				log.Error().Err(err).Str("type", worker.TaskSendVerifyEmail).Str("email", user.Email).Msg("failed to distribute task")
-				return fmt.Errorf("failed to send verify email to username: %s", user.Username)
+				log.Error().Err(err).Str("type", worker.TaskSendVerifyEmail).Str("email", createdUser.Email).Msg("failed to distribute task")
+				return fmt.Errorf("failed to send verify email to username: %s", createdUser.Username)
 			}
 			
 			return nil
@@ -99,15 +99,22 @@ func (server *Server) createUser(ctx *gin.Context) {
 	
 	txResult, err := server.store.CreateUserTx(context.Background(), arg)
 	if err != nil {
-		if db.ErrorCode(err) == db.UniqueViolationCode {
-			ctx.JSON(http.StatusForbidden, errorResponse(err))
+		errCode, constraintName := db.ErrorDescription(err)
+		switch {
+		case errCode == db.UniqueViolationCode && constraintName == db.UniqueUsernameConstraint:
+			err = fmt.Errorf("username %s already exists", req.Username)
+			ctx.JSON(http.StatusConflict, errorResponse(err))
+			return
+		case errCode == db.UniqueViolationCode && constraintName == db.UniqueEmailConstraint:
+			err = fmt.Errorf("email %s already exists", req.Email)
+			ctx.JSON(http.StatusConflict, errorResponse(err))
 			return
 		}
 		
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(fmt.Errorf("failed to create user: %w", err)))
 		return
 	}
-	ctx.Header("Location", fmt.Sprintf("/v1/users/%s", txResult.User.Username))
+	ctx.Header("Location", fmt.Sprintf("/users/%s", txResult.User.Username))
 	
 	ctx.JSON(http.StatusOK, createUserResponse{User: txResult.User})
 }
@@ -126,7 +133,7 @@ type loginUserResponse struct {
 	User                  db.User   `json:"user"`
 }
 
-func validateLoginUserRequest(req *loginUserRequest) (violations []*validator.FieldViolation) {
+func validateLoginUserRequest(req *loginUserRequest) (violations []*FieldViolation) {
 	if err := validator.ValidateUsername(req.Username); err != nil {
 		violations = append(violations, fieldViolation("username", err))
 	}
@@ -148,7 +155,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 	
 	violations := validateLoginUserRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		ctx.JSON(http.StatusBadRequest, failedViolationError(violations))
 		return
 	}
 	
@@ -251,7 +258,7 @@ func (req *updateUserRequest) getPassword() string {
 	return ""
 }
 
-func validateUpdateUserRequest(req *updateUserRequest) (violations []*validator.FieldViolation) {
+func validateUpdateUserRequest(req *updateUserRequest) (violations []*FieldViolation) {
 	if err := validator.ValidateUsername(req.getUserName()); err != nil {
 		violations = append(violations, fieldViolation("username", err))
 	}
@@ -289,7 +296,7 @@ func (server *Server) updateUser(ctx *gin.Context) {
 	
 	violations := validateUpdateUserRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		ctx.JSON(http.StatusBadRequest, failedViolationError(violations))
 		return
 	}
 	
@@ -356,7 +363,7 @@ type verifyUserEmailResponse struct {
 	IsVerified bool `json:"is_verified"`
 }
 
-func validateVerifyUserEmailRequest(req *verifyUserEmailRequest) (violations []*validator.FieldViolation) {
+func validateVerifyUserEmailRequest(req *verifyUserEmailRequest) (violations []*FieldViolation) {
 	if err := validator.ValidateEmailID(req.EmailID); err != nil {
 		violations = append(violations, fieldViolation("email_id", err))
 	}
@@ -378,7 +385,7 @@ func (server *Server) verifyUserEmail(ctx *gin.Context) {
 	
 	violations := validateVerifyUserEmailRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, invalidArgumentError(violations))
+		ctx.JSON(http.StatusBadRequest, failedViolationError(violations))
 		return
 	}
 	

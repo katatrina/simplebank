@@ -26,7 +26,7 @@ func (server *Server) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 	
 	user, err := server.store.CreateUser(ctx, arg)
 	if err != nil {
-		if db.ErrorCode(err) == db.UniqueViolationCode {
+		if db.ErrorDescription(err) == db.UniqueViolationCode {
 			return nil, status.Errorf(codes.AlreadyExists, "username taken")
 		}
 		

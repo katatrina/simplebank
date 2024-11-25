@@ -19,6 +19,7 @@ import (
 )
 
 func main() {
+	// Load configurations
 	config, err := util.LoadConfig("./app.env")
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load config file")
@@ -28,10 +29,19 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 	
+	log.Info().Msg("configurations loaded successfully 👍")
+	
+	// Create connection pool
 	connPool, err := pgxpool.New(context.Background(), config.DatabaseURL)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to validate db connection")
+		log.Fatal().Err(err).Msg("failed to validate db connection string")
 	}
+	
+	pingErr := connPool.Ping(context.Background())
+	if pingErr != nil {
+		log.Fatal().Err(pingErr).Msg("failed to connect to db")
+	}
+	log.Info().Msg("connected to db 👍")
 	
 	store := db.NewStore(connPool)
 	
@@ -41,28 +51,31 @@ func main() {
 	}
 	
 	redisOpt := asynq.RedisClientOpt{
-		Addr:     config.RedisServerAddress,
-		Password: config.RedisServerPassword,
-		TLSConfig: &tls.Config{
+		Addr: config.RedisServerAddress,
+	}
+	if config.Environment == "production" {
+		redisOpt.Password = config.RedisServerPassword
+		redisOpt.TLSConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
-		},
+		}
 	}
 	
 	taskDistributor := worker.NewRedisTaskDistributor(redisOpt)
 	
-	go runTaskProcessor(redisOpt, store, mailer, config)
+	go runTaskProcessor(redisOpt, store, mailer)
 	runHTTPServer(config, store, taskDistributor, mailer)
 }
 
 // runTaskProcessor creates a new task processor and starts it.
-func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender, config util.Config) {
-	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store, mailer, config)
-	log.Info().Msg("start task processor")
+func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail.EmailSender) {
+	taskProcessor := worker.NewRedisTaskProcessor(redisOpt, store, mailer)
 	
 	err := taskProcessor.Start()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to start task processor")
 	}
+	
+	log.Info().Msg("task processor started 👍")
 }
 
 func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor, mailer mail.EmailSender) {
@@ -77,25 +90,3 @@ func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.Ta
 		log.Fatal().Err(err).Msg("failed to start HTTP server")
 	}
 }
-
-// func runGrpcServer(config util.Config, store db.Store) {
-// 	server, err := gapi.NewServer(store, config)
-// 	if err != nil {
-// 		log.Fatalf("cannot create server <= %v", err)
-// 	}
-//
-// 	grpcServer := grpc.NewServer()
-// 	pb.RegisterSimpleBankServer(grpcServer, server)
-// 	reflection.Register(grpcServer)
-//
-// 	listener, err := net.Listen("tcp", config.GRPCServerAddress)
-// 	if err != nil {
-// 		log.Fatalf("cannot create listener <= %v", err)
-// 	}
-//
-// 	log.Printf("start gRPC server at %s", listener.Addr().String())
-// 	err = grpcServer.Serve(listener)
-// 	if err != nil {
-// 		log.Fatalf("cannot start gRPC server <= %v", err)
-// 	}
-// }

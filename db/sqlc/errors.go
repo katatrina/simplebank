@@ -12,13 +12,18 @@ const (
 	UniqueViolationCode     = "23505"
 )
 
+const (
+	UniqueUsernameConstraint = "users_pkey"
+	UniqueEmailConstraint    = "users_email_key"
+)
+
 var ErrRecordNotFound = pgx.ErrNoRows
 
-func ErrorCode(err error) string {
+func ErrorDescription(err error) (errCode string, constraintName string) {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.Code
+		return pgErr.Code, pgErr.ConstraintName
 	}
 	
-	return ""
+	return
 }
