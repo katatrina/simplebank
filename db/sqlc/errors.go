@@ -15,6 +15,12 @@ const (
 const (
 	UniqueUsernameConstraint = "users_pkey"
 	UniqueEmailConstraint    = "users_email_key"
+	
+	UniqueOwnerCurrencyConstraint = "accounts_owner_currency_key"
+)
+
+const (
+	ForeignKeyAccountOwnerConstraint = "accounts_owner_fkey"
 )
 
 var ErrRecordNotFound = pgx.ErrNoRows

@@ -26,10 +26,11 @@ type Server struct {
 	mailer          mail.EmailSender
 }
 
+// NewServer creates a new HTTP server and set up routing.
 func NewServer(store db.Store, config util.Config, taskDistributor worker.TaskDistributor, mailer mail.EmailSender) (*Server, error) {
 	tokenMaker, err := token.NewJWTMaker(config.TokenSecretKey)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create token maker: %w", err)
+		return nil, fmt.Errorf("failed to create token maker: %w", err)
 	}
 	
 	server := &Server{

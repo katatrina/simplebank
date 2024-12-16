@@ -33,32 +33,32 @@ func ValidateUsername(value string) error {
 	return nil
 }
 
-func ValidatePassword(password string) (err error) {
-	// Define a general password rule that covers all conditions
-	err = errors.New("password must be between 8 and 30 characters long, contain at least one digit, one lowercase letter, one uppercase letter, and one special character")
+func ValidatePassword(value string) (err error) {
+	// Define a general value rule that covers all conditions
+	err = errors.New("value must be between 8 and 30 characters long, contain at least one digit, one lowercase letter, one uppercase letter, and one special character")
 	
-	// Check if password is between 8 and 30 characters
-	if len(password) < 8 || len(password) > 30 {
+	// Check if value is between 8 and 30 characters
+	if len(value) < 8 || len(value) > 30 {
 		return
 	}
 	
-	// Check if password contains at least one digit
-	if !regexp.MustCompile(`[0-9]`).MatchString(password) {
+	// Check if value contains at least one digit
+	if !regexp.MustCompile(`[0-9]`).MatchString(value) {
 		return
 	}
 	
-	// Check if password contains at least one lowercase letter
-	if !regexp.MustCompile(`[a-z]`).MatchString(password) {
+	// Check if value contains at least one lowercase letter
+	if !regexp.MustCompile(`[a-z]`).MatchString(value) {
 		return
 	}
 	
-	// Check if password contains at least one uppercase letter
-	if !regexp.MustCompile(`[A-Z]`).MatchString(password) {
+	// Check if value contains at least one uppercase letter
+	if !regexp.MustCompile(`[A-Z]`).MatchString(value) {
 		return
 	}
 	
-	// Check if password contains at least one special character
-	if !regexp.MustCompile(`[\W_]`).MatchString(password) {
+	// Check if value contains at least one special character
+	if !regexp.MustCompile(`[\W_]`).MatchString(value) {
 		return
 	}
 	

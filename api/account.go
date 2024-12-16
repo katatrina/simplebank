@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	
 	"github.com/gin-gonic/gin"
@@ -35,13 +36,19 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	// Creating an account
 	account, err := server.store.CreateAccount(context.Background(), arg)
 	if err != nil {
-		errCode, _ := db.ErrorDescription(err)
-		if errCode == db.UniqueViolationCode || errCode == db.ForeignKeyViolationCode {
-			ctx.JSON(http.StatusForbidden, errorResponse(err))
+		errCode, constraintName := db.ErrorDescription(err)
+		switch {
+		case errCode == db.UniqueViolationCode && constraintName == db.UniqueOwnerCurrencyConstraint:
+			err = fmt.Errorf("username %s already owns an account with currency %s", arg.Owner, arg.Currency)
+			ctx.JSON(http.StatusConflict, errorResponse(err))
+			return
+		case errCode == db.ForeignKeyViolationCode && constraintName == db.ForeignKeyAccountOwnerConstraint:
+			err = fmt.Errorf("owner %s does not exist", arg.Owner)
+			ctx.JSON(http.StatusConflict, errorResponse(err))
 			return
 		}
 		
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, errorResponse(fmt.Errorf("failed to create user: %w", err)))
 		return
 	}
 	

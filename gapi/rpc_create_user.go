@@ -26,8 +26,9 @@ func (server *Server) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 	
 	user, err := server.store.CreateUser(ctx, arg)
 	if err != nil {
-		if db.ErrorDescription(err) == db.UniqueViolationCode {
-			return nil, status.Errorf(codes.AlreadyExists, "username taken")
+		errCode, constraintName := db.ErrorDescription(err)
+		if errCode == db.UniqueViolationCode && constraintName == "users_email_key" {
+			return nil, status.Errorf(codes.AlreadyExists, "email already exists: %s", arg.Email)
 		}
 		
 		return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")

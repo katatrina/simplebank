@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type FailedViolationRequest struct {
+type FailedValidationResponse struct {
 	Message         string            `json:"message"`
 	FieldViolations []*FieldViolation `json:"field_violations"`
 }
@@ -25,8 +25,8 @@ func errorResponse(err error) gin.H {
 	return gin.H{"message": err.Error()}
 }
 
-func failedViolationError(violations []*FieldViolation) *FailedViolationRequest {
-	return &FailedViolationRequest{
+func failedValidationError(violations []*FieldViolation) *FailedValidationResponse {
+	return &FailedValidationResponse{
 		Message:         "Invalid request parameters",
 		FieldViolations: violations,
 	}

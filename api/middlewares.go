@@ -15,7 +15,7 @@ const (
 	authorizationPayloadKey = "authPayload"
 )
 
-// authMiddleware requires the client to provide a valid access token.
+// authMiddleware authenticates the user and checks if the user has the required permissions.
 func authMiddleware(tokenMaker token.Maker, accessibleRoles []string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authorizationHeader := ctx.GetHeader(authorizationHeaderKey)
@@ -25,7 +25,7 @@ func authMiddleware(tokenMaker token.Maker, accessibleRoles []string) gin.Handle
 			return
 		}
 		
-		fields := strings.Split(authorizationHeader, " ")
+		fields := strings.Fields(authorizationHeader)
 		if len(fields) != 2 {
 			err := errors.New("invalid authorization header format")
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
@@ -39,7 +39,8 @@ func authMiddleware(tokenMaker token.Maker, accessibleRoles []string) gin.Handle
 			return
 		}
 		
-		payload, err := tokenMaker.VerifyToken(fields[1])
+		accessToken := fields[1]
+		payload, err := tokenMaker.VerifyToken(accessToken)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
 			return

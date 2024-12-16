@@ -22,26 +22,26 @@ func main() {
 	// Load configurations
 	config, err := util.LoadConfig("./app.env")
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to load config file")
+		log.Fatal().Err(err).Msg("failed to load config file 😣")
 	}
 	
 	if config.Environment == "development" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 	
-	log.Info().Msg("configurations loaded successfully 👍")
+	log.Info().Msg("configurations loaded successfully 😎")
 	
 	// Create connection pool
 	connPool, err := pgxpool.New(context.Background(), config.DatabaseURL)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to validate db connection string")
+		log.Fatal().Err(err).Msg("failed to validate db connection string 😣")
 	}
 	
 	pingErr := connPool.Ping(context.Background())
 	if pingErr != nil {
-		log.Fatal().Err(pingErr).Msg("failed to connect to db")
+		log.Fatal().Err(pingErr).Msg("failed to connect to db 😣")
 	}
-	log.Info().Msg("connected to db 👍")
+	log.Info().Msg("connected to db 😎")
 	
 	store := db.NewStore(connPool)
 	
@@ -72,21 +72,21 @@ func runTaskProcessor(redisOpt asynq.RedisClientOpt, store db.Store, mailer mail
 	
 	err := taskProcessor.Start()
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to start task processor")
+		log.Fatal().Err(err).Msg("failed to start task processor 😣")
 	}
 	
-	log.Info().Msg("task processor started 👍")
+	log.Info().Msg("task processor started 😎")
 }
 
 func runHTTPServer(config util.Config, store db.Store, taskDistributor worker.TaskDistributor, mailer mail.EmailSender) {
 	server, err := api.NewServer(store, config, taskDistributor, mailer)
 	
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create HTTP server")
+		log.Fatal().Err(err).Msg("failed to create HTTP server 😣")
 	}
 	
 	err = server.Start(config.HTTPServerAddress)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to start HTTP server")
+		log.Fatal().Err(err).Msg("failed to start HTTP server 😣")
 	}
 }

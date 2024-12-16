@@ -60,7 +60,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 	
 	violations := validateCreateUserRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusUnprocessableEntity, failedViolationError(violations))
+		ctx.JSON(http.StatusUnprocessableEntity, failedValidationError(violations))
 		return
 	}
 	
@@ -90,7 +90,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 			err = server.taskDistributor.DistributeTaskSendVerifyEmail(ctx, taskPayload, opts...)
 			if err != nil {
 				log.Error().Err(err).Str("type", worker.TaskSendVerifyEmail).Str("email", createdUser.Email).Msg("failed to distribute task")
-				return fmt.Errorf("failed to send verify email to username: %s", createdUser.Username)
+				return fmt.Errorf("failed to schedule task send verify email to %s", createdUser.Email)
 			}
 			
 			return nil
@@ -114,7 +114,6 @@ func (server *Server) createUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(fmt.Errorf("failed to create user: %w", err)))
 		return
 	}
-	ctx.Header("Location", fmt.Sprintf("/users/%s", txResult.User.Username))
 	
 	ctx.JSON(http.StatusOK, createUserResponse{User: txResult.User})
 }
@@ -125,12 +124,12 @@ type loginUserRequest struct {
 }
 
 type loginUserResponse struct {
+	User                  db.User   `json:"user"`
 	SessionID             uuid.UUID `json:"session_id"`
 	AccessToken           string    `json:"access_token"`
 	AccessTokenExpiresAt  time.Time `json:"access_token_expires_at"`
 	RefreshToken          string    `json:"refresh_token"`
 	RefreshTokenExpiresAt time.Time `json:"refresh_token_expires_at"`
-	User                  db.User   `json:"user"`
 }
 
 func validateLoginUserRequest(req *loginUserRequest) (violations []*FieldViolation) {
@@ -155,17 +154,19 @@ func (server *Server) loginUser(ctx *gin.Context) {
 	
 	violations := validateLoginUserRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, failedViolationError(violations))
+		ctx.JSON(http.StatusUnprocessableEntity, failedValidationError(violations))
 		return
 	}
 	
 	user, err := server.store.GetUser(context.Background(), req.Username)
 	if err != nil {
 		if errors.Is(err, db.ErrRecordNotFound) {
-			ctx.JSON(http.StatusBadRequest, errorResponse(err))
+			err = errors.New("username not found")
+			ctx.JSON(http.StatusNotFound, errorResponse(err))
 			return
 		}
 		
+		err = fmt.Errorf("failed to find user: %w", err)
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
@@ -179,18 +180,21 @@ func (server *Server) loginUser(ctx *gin.Context) {
 	
 	accessToken, accessPayload, err := server.tokenMaker.CreateToken(user.Username, user.Role, server.config.AccessTokenDuration)
 	if err != nil {
+		err = fmt.Errorf("failed to create access token: %w", err)
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
 	
 	refreshToken, refreshPayload, err := server.tokenMaker.CreateToken(user.Username, user.Role, server.config.RefreshTokenDuration)
 	if err != nil {
+		err = fmt.Errorf("failed to create refresh token: %w", err)
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
 	
 	sessionID, err := uuid.Parse(refreshPayload.ID)
 	if err != nil {
+		err = fmt.Errorf("failed to parse session ID: %w", err)
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
@@ -201,9 +205,11 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		RefreshToken: refreshToken,
 		UserAgent:    ctx.GetHeader("User-Agent"),
 		ClientIp:     ctx.ClientIP(),
+		IsBlocked:    false,
 		ExpiresAt:    refreshPayload.ExpiresAt.Time,
 	})
 	if err != nil {
+		err = fmt.Errorf("failed to create session: %w", err)
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
@@ -296,7 +302,7 @@ func (server *Server) updateUser(ctx *gin.Context) {
 	
 	violations := validateUpdateUserRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, failedViolationError(violations))
+		ctx.JSON(http.StatusBadRequest, failedValidationError(violations))
 		return
 	}
 	
@@ -385,7 +391,7 @@ func (server *Server) verifyUserEmail(ctx *gin.Context) {
 	
 	violations := validateVerifyUserEmailRequest(req)
 	if violations != nil {
-		ctx.JSON(http.StatusBadRequest, failedViolationError(violations))
+		ctx.JSON(http.StatusBadRequest, failedValidationError(violations))
 		return
 	}
 	
