@@ -57,7 +57,7 @@ async function handleLogin() {
     </div>
 
     <div>
-      <Button label="Login" class="w-full" :disabled="isLoginDisabled" />
+      <Button type="submit" label="Login" class="w-full" :disabled="isLoginDisabled" />
     </div>
   </form>
 </template>

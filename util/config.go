@@ -9,6 +9,7 @@ import (
 // Config stores all configuration of the application.
 // The values are read by viper from a config file or environment variables.
 type Config struct {
+	AllowedOrigins       []string      `mapstructure:"ALLOWED_ORIGINS"`
 	Environment          string        `mapstructure:"ENVIRONMENT"`
 	DatabaseURL          string        `mapstructure:"DATABASE_URL"`
 	HTTPServerAddress    string        `mapstructure:"HTTP_SERVER_ADDRESS"`

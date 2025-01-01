@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	db "github.com/katatrina/simplebank/db/sqlc"
 	"github.com/katatrina/simplebank/mail"
@@ -55,6 +56,11 @@ func (server *Server) setupRouter() {
 	}
 	
 	router := gin.Default()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     server.config.AllowedOrigins,
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 	v1 := router.Group("/v1")
 	
 	v1.GET("/health", server.healthCheck)
