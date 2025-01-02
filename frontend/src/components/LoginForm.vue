@@ -51,7 +51,7 @@ async function handleLogin() {
 
     toast.add({
       severity: 'error',
-      summary:  'Login Failed',
+      summary: 'Login Failed',
       detail: errorMessage.value,
       life: 3000
     });
@@ -65,6 +65,7 @@ async function handleLogin() {
 
 <template>
   <form @submit.prevent="handleLogin" class="flex flex-col gap-4">
+    <!--Username input -->
     <div>
       <InputGroup>
         <InputGroupAddon>
@@ -78,6 +79,7 @@ async function handleLogin() {
       </InputGroup>
     </div>
 
+    <!-- password input -->
     <div>
       <InputGroup>
         <InputGroupAddon><i class="pi pi-lock"></i></InputGroupAddon>
