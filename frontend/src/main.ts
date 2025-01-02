@@ -5,6 +5,7 @@ import App from './App.vue' // import root component
 import router from './router' // import router
 import PrimeVue from 'primevue/config'
 import Aura from '@primevue/themes/aura'
+import ToastService from 'primevue/toastservice';
 
 const app = createApp(App) // create application instance
 app.use(PrimeVue, {
@@ -18,7 +19,7 @@ app.use(PrimeVue, {
     },
   },
 })
-
+app.use(ToastService);
 app.use(router) // register router
 
 app.mount('#app') // call mount() to render UI, it return the root component "App"
