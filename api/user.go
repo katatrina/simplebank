@@ -133,12 +133,12 @@ type loginUserResponse struct {
 }
 
 func validateLoginUserRequest(req *loginUserRequest) (violations []*FieldViolation) {
-	if err := validator.ValidateUsername(req.Username); err != nil {
-		violations = append(violations, fieldViolation("username", err))
+	if req.Username == "" {
+		violations = append(violations, fieldViolation("username", errors.New("must be provided")))
 	}
 	
-	if err := validator.ValidatePassword(req.Password); err != nil {
-		violations = append(violations, fieldViolation("password", err))
+	if req.Password == "" {
+		violations = append(violations, fieldViolation("password", errors.New("must be provided")))
 	}
 	
 	return violations
